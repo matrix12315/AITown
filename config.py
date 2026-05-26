@@ -22,18 +22,19 @@ import os
 #   - Embedding model (bge-large-zh): converts text into a vector (list of numbers)
 #     for similarity search. Similar meanings → similar vectors.
 
-# API key: set via environment variable or leave empty to configure later
-SILICONFLOW_API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
+# API key: set via environment variable or use default
+SILICONFLOW_API_KEY = os.environ.get("SILICONFLOW_API_KEY", "sk-bdjyqopyqxjtayqgjfootthqvxmsayqhbuxegeywvhwzysoo")
 
 # Base URL for all API calls (OpenAI-compatible format)
 SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
 
 # Chat model: used for generating plans, reflections, conversations
-SILICONFLOW_CHAT_MODEL = os.environ.get("SILICONFLOW_CHAT_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+SILICONFLOW_CHAT_MODEL = os.environ.get("SILICONFLOW_CHAT_MODEL", "inclusionAI/Ling-flash-2.0")
 
 # Embedding model: converts text into a vector of numbers for similarity comparison
 # Example: "cooking breakfast" → [0.12, -0.34, 0.56, ...] (1024 numbers)
-SILICONFLOW_EMBEDDING_MODEL = os.environ.get("SILICONFLOW_EMBEDDING_MODEL", "BAAI/bge-large-zh-v1.5")
+SILICONFLOW_EMBEDDING_MODEL = os.environ.get("SILICONFLOW_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B")
+EMBEDDING_DIM = 1024  # Qwen3-Embedding supports 32-4096; 1024 is a good balance
 
 # =============================================================================
 # SECTION 2: File Paths
