@@ -8,8 +8,7 @@ from llm.client import LLMClient
 
 def test_generate_calls_api():
     """generate() sends a POST to /chat/completions and returns the response text."""
-    client = LLMClient(api_key="test", base_url="https://api.siliconflow.cn/v1",
-                       chat_model="test-model", embedding_model="test-embed")
+    client = LLMClient()
     with patch('requests.post') as mock_post:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -24,8 +23,7 @@ def test_generate_calls_api():
 
 def test_get_embedding():
     """get_embedding() sends a POST to /embeddings with dimensions param and returns the vector."""
-    client = LLMClient(api_key="test", base_url="https://api.siliconflow.cn/v1",
-                       chat_model="test-model", embedding_model="test-embed")
+    client = LLMClient()
     with patch('requests.post') as mock_post:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -42,8 +40,7 @@ def test_get_embedding():
 
 def test_generate_retries_on_failure():
     """generate() retries when the API returns non-200 status."""
-    client = LLMClient(api_key="test", base_url="https://api.siliconflow.cn/v1",
-                       chat_model="test-model", embedding_model="test-embed")
+    client = LLMClient()
     with patch('requests.post') as mock_post, patch('time.sleep'):
         fail_resp = MagicMock()
         fail_resp.status_code = 500
@@ -58,8 +55,7 @@ def test_generate_retries_on_failure():
 
 def test_get_embedding_empty_text():
     """get_embedding() handles empty text by using a placeholder."""
-    client = LLMClient(api_key="test", base_url="https://api.siliconflow.cn/v1",
-                       chat_model="test-model", embedding_model="test-embed")
+    client = LLMClient()
     with patch('requests.post') as mock_post:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -69,3 +65,48 @@ def test_get_embedding_empty_text():
         assert result == [0.5]
         call_payload = mock_post.call_args[1]['json']
         assert call_payload['input'] == "this is blank"
+
+
+def test_generate_fallback_on_403():
+    """generate() skips to next provider when first returns 403 (insufficient quota)."""
+    client = LLMClient()
+    with patch('requests.post') as mock_post, patch('time.sleep'):
+        # First call: 403 from SiliconFlow (only 1 chat model)
+        fail_resp = MagicMock()
+        fail_resp.status_code = 403
+        # Second call: 200 from DashScope (first chat model)
+        ok_resp = MagicMock()
+        ok_resp.status_code = 200
+        ok_resp.json.return_value = {"choices": [{"message": {"content": "hello from fallback"}}]}
+        mock_post.side_effect = [fail_resp, ok_resp]
+        result = client.generate("test")
+        assert result == "hello from fallback"
+        assert mock_post.call_count == 2
+
+
+def test_get_embedding_fallback_on_403():
+    """get_embedding() skips to next provider when first returns 403."""
+    client = LLMClient()
+    with patch('requests.post') as mock_post, patch('time.sleep'):
+        # First call: 403 from SiliconFlow (Qwen3-Embedding-8B)
+        fail_resp = MagicMock()
+        fail_resp.status_code = 403
+        # Second call: 200 from DashScope (text-embedding-v3)
+        ok_resp = MagicMock()
+        ok_resp.status_code = 200
+        ok_resp.json.return_value = {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
+        mock_post.side_effect = [fail_resp, ok_resp]
+        result = client.get_embedding("test text")
+        assert result == [0.1, 0.2, 0.3]
+        assert mock_post.call_count == 2
+
+
+def test_generate_returns_error_when_all_fail():
+    """generate() returns 'ERROR' when all providers/models fail."""
+    client = LLMClient()
+    with patch('requests.post') as mock_post, patch('time.sleep'):
+        fail_resp = MagicMock()
+        fail_resp.status_code = 403
+        mock_post.return_value = fail_resp
+        result = client.generate("test")
+        assert result == "ERROR"

@@ -1,98 +1,138 @@
 """
-LLM Client — SiliconFlow API Wrapper
-=====================================
-Provides two core capabilities:
-1. generate(prompt) → text response from the chat model
-2. get_embedding(text) → vector of numbers from the embedding model
+LLM Client — Multi-Provider API Wrapper with Fallback
+=====================================================
+Supports multiple API providers with automatic fallback:
+1. SiliconFlow (primary)
+2. DashScope / Alibaba (fallback)
 
-The chat model (Qwen2.5-7B) is used for:
-- Generating daily plans
-- Creating reflections/insights
-- Writing conversations between agents
+When a model returns 403 (insufficient quota), automatically tries the next model.
+When all models for a provider fail, falls back to the next provider.
 
-The embedding model (bge-large-zh) is used for:
-- Converting memory text into vectors for similarity search
-- Comparing "how similar" two pieces of text are (cosine similarity)
+Two core functions:
+1. generate(prompt) → text response from chat model
+2. get_embedding(text) → vector of numbers from embedding model
 """
 import requests
 import time
 
 
+# API provider configs: each has base_url, api_key, and ordered model lists
+# embedding_models: list of (model_name, dimension) tuples
+API_PROVIDERS = [
+    {
+        "name": "SiliconFlow",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "api_key": "sk-bdjyqopyqxjtayqgjfootthqvxmsayqhbuxegeywvhwzysoo",
+        "chat_models": ["inclusionAI/Ling-flash-2.0"],
+        "embedding_models": [("Qwen/Qwen3-Embedding-8B", 1024)],
+    },
+    {
+        "name": "DashScope",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "api_key": "sk-07bbb23c21f54e0f8be305c6eab7399d",
+        "chat_models": ["qwen3.6-flash", "qwen-flash-character-2026-02-26", "qwen3.6-flash-2026-04-16"],
+        "embedding_models": [
+            ("text-embedding-v3", 1024),
+            ("text-embedding-v2", 1536),
+            ("text-embedding-v1", 1536),
+        ],
+    },
+]
+
+PROXIES = {"http": None, "https": None}
+
+
 class LLMClient:
     """
-    Wrapper around SiliconFlow's OpenAI-compatible API.
+    Multi-provider LLM client with automatic fallback.
 
-    Usage:
-        client = LLMClient(api_key="sk-xxx", base_url="https://api.siliconflow.cn/v1",
-                           chat_model="Qwen/Qwen2.5-7B-Instruct",
-                           embedding_model="BAAI/bge-large-zh-v1.5")
-        response = client.generate("What should Isabella do today?")
-        vector = client.get_embedding("Isabella is cooking breakfast")
+    Tries each model in order. If a 403 (insufficient quota) is returned,
+    moves to the next model. If all models fail for a provider, tries the
+    next provider.
     """
-    def __init__(self, api_key, base_url, chat_model, embedding_model):
-        self.api_key = api_key
-        self.base_url = base_url.rstrip('/')
-        self.chat_model = chat_model
-        self.embedding_model = embedding_model
+    def __init__(self):
+        pass
 
-    def generate(self, prompt, max_retries=3):
-        """
-        Send a prompt to the chat model and get a text response.
-        Returns the LLM's response as a string, or "ERROR" if all retries fail.
-        """
+    def _request_chat(self, provider, model, prompt):
+        """Send a chat request to a specific provider/model."""
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {provider['api_key']}",
             "Content-Type": "application/json"
         }
         payload = {
-            "model": self.chat_model,
+            "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
             "max_tokens": 2000,
         }
-        for attempt in range(max_retries):
-            try:
-                resp = requests.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=headers, json=payload, timeout=60,
-                    proxies={"http": None, "https": None}
-                )
-                if resp.status_code == 200:
-                    return resp.json()["choices"][0]["message"]["content"]
-                time.sleep(1)
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise
-                time.sleep(1)
+        resp = requests.post(
+            f"{provider['base_url']}/chat/completions",
+            headers=headers, json=payload, timeout=60, proxies=PROXIES
+        )
+        return resp
+
+    def _request_embedding(self, provider, model, dimension, text):
+        """Send an embedding request to a specific provider/model."""
+        headers = {
+            "Authorization": f"Bearer {provider['api_key']}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model,
+            "input": text.replace("\n", " "),
+            "dimensions": dimension,
+        }
+        resp = requests.post(
+            f"{provider['base_url']}/embeddings",
+            headers=headers, json=payload, timeout=30, proxies=PROXIES
+        )
+        return resp
+
+    def generate(self, prompt, max_retries=3):
+        """
+        Generate text using chat model with provider/model fallback.
+
+        Order: try each provider → try each model in that provider → retry on transient errors.
+        On 403 (insufficient), skip to next model immediately.
+        """
+        for provider in API_PROVIDERS:
+            for model in provider["chat_models"]:
+                for attempt in range(max_retries):
+                    try:
+                        resp = self._request_chat(provider, model, prompt)
+                        if resp.status_code == 200:
+                            return resp.json()["choices"][0]["message"]["content"]
+                        if resp.status_code == 403:
+                            print(f"[LLM] 403 from {provider['name']}/{model}, trying next model")
+                            break  # skip to next model
+                        # Other errors: retry
+                        time.sleep(1)
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            break  # skip to next model
+                        time.sleep(1)
         return "ERROR"
 
     def get_embedding(self, text, max_retries=3):
         """
-        Convert text into a vector for similarity comparison.
-        Returns a list of floats, or empty list on failure.
+        Get embedding vector with provider/model fallback.
+        Returns a list of floats, or empty list on complete failure.
         """
         if not text:
             text = "this is blank"
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": self.embedding_model,
-            "input": text.replace("\n", " "),
-            "dimensions": 1024,
-        }
-        for attempt in range(max_retries):
-            try:
-                resp = requests.post(
-                    f"{self.base_url}/embeddings",
-                    headers=headers, json=payload, timeout=30
-                )
-                if resp.status_code == 200:
-                    return resp.json()["data"][0]["embedding"]
-                time.sleep(1)
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise
-                time.sleep(1)
+        for provider in API_PROVIDERS:
+            for model, dimension in provider["embedding_models"]:
+                for attempt in range(max_retries):
+                    try:
+                        resp = self._request_embedding(provider, model, dimension, text)
+                        if resp.status_code == 200:
+                            return resp.json()["data"][0]["embedding"]
+                        if resp.status_code == 403:
+                            print(f"[LLM] 403 from {provider['name']}/{model}, trying next model")
+                            break
+                        time.sleep(1)
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            break
+                        time.sleep(1)
         return []
