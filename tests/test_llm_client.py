@@ -84,21 +84,17 @@ def test_generate_fallback_on_403():
         assert mock_post.call_count == 2
 
 
-def test_get_embedding_fallback_on_403():
-    """get_embedding() skips to next provider when first returns 403."""
+def test_get_embedding_no_fallback():
+    """get_embedding() returns [] when the only provider returns 403 (no cross-model fallback)."""
     client = LLMClient()
     with patch('requests.post') as mock_post, patch('time.sleep'):
-        # First call: 403 from SiliconFlow (Qwen3-Embedding-8B)
         fail_resp = MagicMock()
         fail_resp.status_code = 403
-        # Second call: 200 from DashScope (text-embedding-v3)
-        ok_resp = MagicMock()
-        ok_resp.status_code = 200
-        ok_resp.json.return_value = {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
-        mock_post.side_effect = [fail_resp, ok_resp]
+        mock_post.return_value = fail_resp
         result = client.get_embedding("test text")
-        assert result == [0.1, 0.2, 0.3]
-        assert mock_post.call_count == 2
+        assert result == []
+        # Only 1 model (SiliconFlow), so only 1 call — no fallback to DashScope
+        assert mock_post.call_count == 1
 
 
 def test_generate_returns_error_when_all_fail():

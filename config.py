@@ -34,7 +34,7 @@ SILICONFLOW_CHAT_MODEL = os.environ.get("SILICONFLOW_CHAT_MODEL", "inclusionAI/L
 # Embedding model: converts text into a vector of numbers for similarity comparison
 # Example: "cooking breakfast" → [0.12, -0.34, 0.56, ...] (1024 numbers)
 SILICONFLOW_EMBEDDING_MODEL = os.environ.get("SILICONFLOW_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B")
-EMBEDDING_DIM = 1024  # Qwen3-Embedding supports 32-4096; 1024 is a good balance
+EMBEDDING_DIM = 1024  # Must match across all embedding models for cosine similarity
 
 # =============================================================================
 # SECTION 2: File Paths

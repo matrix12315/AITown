@@ -31,11 +31,7 @@ API_PROVIDERS = [
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "api_key": "sk-07bbb23c21f54e0f8be305c6eab7399d",
         "chat_models": ["qwen3.6-flash", "qwen-flash-character-2026-02-26", "qwen3.6-flash-2026-04-16"],
-        "embedding_models": [
-            ("text-embedding-v3", 1024),
-            ("text-embedding-v2", 1536),
-            ("text-embedding-v1", 1536),
-        ],
+        "embedding_models": [],  # No fallback — different models produce incompatible vector spaces
     },
 ]
 
