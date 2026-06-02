@@ -14,27 +14,58 @@ Sections:
 import os
 
 # =============================================================================
-# SECTION 1: SiliconFlow API Settings
+# SECTION 1: API Provider Settings
 # =============================================================================
-# SiliconFlow is an OpenAI-compatible API service (cheaper, supports Chinese models).
-# We use two models:
-#   - Chat model (Qwen2.5-7B): generates text responses (planning, reflection, conversation)
-#   - Embedding model (bge-large-zh): converts text into a vector (list of numbers)
-#     for similarity search. Similar meanings → similar vectors.
+# We use LLM APIs to:
+#   1. Generate text (plans, reflections, conversations) — called "chat"
+#   2. Convert text into vectors for similarity search — called "embedding"
+#
+# Two providers are configured with automatic fallback:
+#   - SiliconFlow (primary): cheaper, supports Chinese models
+#   - DashScope / Alibaba (fallback): chat only, no embedding fallback
+#
+# Why no embedding fallback?
+#   Different embedding models produce different vector spaces.
+#   Cosine similarity only works within the same model.
+#   So we use ONE embedding model (Qwen3-Embedding-8B, 1024 dims).
+#
+# Each provider has:
+#   - name: for logging
+#   - base_url: API endpoint (OpenAI-compatible format)
+#   - api_key: authentication secret
+#   - chat_models: ordered list of models to try for text generation
+#   - embedding_models: list of (model_name, dimension) tuples
 
-# API key: set via environment variable or use default
-SILICONFLOW_API_KEY = os.environ.get("SILICONFLOW_API_KEY", "sk-bdjyqopyqxjtayqgjfootthqvxmsayqhbuxegeywvhwzysoo")
+API_PROVIDERS = [
+    {
+        "name": "SiliconFlow",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "api_key": os.environ.get(
+            "SILICONFLOW_API_KEY",
+            "sk-bdjyqopyqxjtayqgjfootthqvxmsayqhbuxegeywvhwzysoo"
+        ),
+        "chat_models": ["inclusionAI/Ling-flash-2.0"],
+        "embedding_models": [("Qwen/Qwen3-Embedding-8B", 1024)],
+    },
+    {
+        "name": "DashScope",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "api_key": os.environ.get(
+            "DASHSCOPE_API_KEY",
+            "sk-07bbb23c21f54e0f8be305c6eab7399d"
+        ),
+        "chat_models": [
+            "qwen3.6-flash",
+            "qwen-flash-character-2026-02-26",
+            "qwen3.6-flash-2026-04-16",
+        ],
+        "embedding_models": [],  # No fallback — incompatible vector spaces
+    },
+]
 
-# Base URL for all API calls (OpenAI-compatible format)
-SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
-
-# Chat model: used for generating plans, reflections, conversations
-SILICONFLOW_CHAT_MODEL = os.environ.get("SILICONFLOW_CHAT_MODEL", "inclusionAI/Ling-flash-2.0")
-
-# Embedding model: converts text into a vector of numbers for similarity comparison
-# Example: "cooking breakfast" → [0.12, -0.34, 0.56, ...] (1024 numbers)
-SILICONFLOW_EMBEDDING_MODEL = os.environ.get("SILICONFLOW_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B")
-EMBEDDING_DIM = 1024  # Must match across all embedding models for cosine similarity
+# Embedding dimension: must match across all embedding models for cosine similarity
+# Qwen3-Embedding-8B supports 32-4096; 1024 chosen for balance of speed and quality
+EMBEDDING_DIM = 1024
 
 # =============================================================================
 # SECTION 2: File Paths

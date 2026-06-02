@@ -11,30 +11,15 @@ When all models for a provider fail, falls back to the next provider.
 Two core functions:
 1. generate(prompt) → text response from chat model
 2. get_embedding(text) → vector of numbers from embedding model
+
+Provider configuration is imported from config.py (single source of truth).
 """
 import requests
 import time
+from config import API_PROVIDERS
 
 
-# API provider configs: each has base_url, api_key, and ordered model lists
-# embedding_models: list of (model_name, dimension) tuples
-API_PROVIDERS = [
-    {
-        "name": "SiliconFlow",
-        "base_url": "https://api.siliconflow.cn/v1",
-        "api_key": "sk-bdjyqopyqxjtayqgjfootthqvxmsayqhbuxegeywvhwzysoo",
-        "chat_models": ["inclusionAI/Ling-flash-2.0"],
-        "embedding_models": [("Qwen/Qwen3-Embedding-8B", 1024)],
-    },
-    {
-        "name": "DashScope",
-        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "api_key": "sk-07bbb23c21f54e0f8be305c6eab7399d",
-        "chat_models": ["qwen3.6-flash", "qwen-flash-character-2026-02-26", "qwen3.6-flash-2026-04-16"],
-        "embedding_models": [],  # No fallback — different models produce incompatible vector spaces
-    },
-]
-
+# Disable proxy for direct API access (SiliconFlow/DashScope don't need proxies)
 PROXIES = {"http": None, "https": None}
 
 
