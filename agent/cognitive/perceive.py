@@ -1,0 +1,108 @@
+"""
+Perceive Module — Detect Events in the Environment
+====================================================
+The first step of the cognitive loop:
+    PERCEIVE → Retrieve → Plan → Reflect → Execute
+
+What does "perceive" mean?
+    An agent can only "see" things within its vision radius (4 tiles in each
+    direction). This module scans nearby tiles for other agents and records
+    what they're doing as events.
+
+What does it produce?
+    A list of new events to add to the agent's associative memory.
+    Example: "Maria is painting in the studio" → (Maria, is, painting)
+
+Why filter out duplicates?
+    Without deduplication, the agent would record "Maria is painting" every
+    single step (every 10 game seconds). That wastes memory and makes
+    retrieval noisy. We check the last N events (retention=5) and skip
+    any with the same (subject, predicate, object) triple.
+
+Connection to the paper:
+    Section 4.1 — "Each agent receives information about the environment
+    through perception. The agent's perception is limited to a radius
+    around its current position."
+"""
+
+
+def perceive(persona, maze, personas):
+    """
+    Scan the environment and return new events the agent noticed.
+
+    Steps:
+    1. Get the agent's current position (cx, cy) and vision radius (vr)
+    2. Check every other agent — are they within vision radius?
+    3. If visible, record what they're doing as an event
+    4. Filter out events already in recent memory (deduplication)
+
+    Args:
+        persona: the agent doing the perceiving
+        maze: the world map (not used yet — will be needed for object interactions)
+        personas: dict of {name: Persona} — all agents in the simulation
+
+    Returns:
+        List of event dicts, each with:
+        - subject: who (e.g., "Maria")
+        - predicate: what kind of action (e.g., "is")
+        - object: what they're doing (e.g., "painting")
+        - description: human-readable text (e.g., "Maria is painting in the studio")
+        - created: datetime when perceived
+        - poignancy: importance score (2 for observed actions — low importance)
+    """
+    perceived = []
+
+    # Step 1: Get this agent's position and vision radius
+    cx, cy = persona.scratch.curr_tile
+    vr = persona.scratch.vision_r  # default 4 tiles
+
+    # Step 2: Check each other agent
+    for other_name, other_persona in personas.items():
+        # Skip self
+        if other_name == persona.name:
+            continue
+        # Skip agents with no position yet
+        if other_persona.scratch.curr_tile is None:
+            continue
+
+        # Calculate distance (Manhattan distance on grid)
+        ox, oy = other_persona.scratch.curr_tile
+        if abs(ox - cx) <= vr and abs(oy - cy) <= vr:
+            # This agent is within vision radius — we can see them
+
+            # Step 3: Record what they're doing
+            if other_persona.scratch.act_description:
+                # Build a human-readable description
+                desc = f"{other_name} is {other_persona.scratch.act_description}"
+
+                # Build the SPO triple for structured storage
+                # e.g., ("Maria", "is", "painting")
+                s = other_name
+                p = "is"
+                # Take the first word of the action as the "object"
+                # e.g., "painting in the studio" → "painting"
+                o = other_persona.scratch.act_description.split()[0] \
+                    if other_persona.scratch.act_description else "idle"
+
+                perceived.append({
+                    "subject": s,
+                    "predicate": p,
+                    "object": o,
+                    "description": desc,
+                    "created": persona.scratch.curr_time,
+                    "poignancy": 2,  # low importance — just observing someone else
+                })
+
+    # Step 4: Deduplication — filter out events already in recent memory
+    # get_summarized_latest_events returns SPO tuples of the last N events
+    recent_summaries = persona.a_mem.get_summarized_latest_events(
+        persona.scratch.retention  # default 5
+    )
+
+    filtered = []
+    for event in perceived:
+        spo = (event["subject"], event["predicate"], event["object"])
+        if spo not in recent_summaries:
+            filtered.append(event)
+
+    return filtered
