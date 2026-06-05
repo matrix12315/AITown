@@ -40,20 +40,14 @@ API_PROVIDERS = [
     {
         "name": "SiliconFlow",
         "base_url": "https://api.siliconflow.cn/v1",
-        "api_key": os.environ.get(
-            "SILICONFLOW_API_KEY",
-            "sk-bdjyqopyqxjtayqgjfootthqvxmsayqhbuxegeywvhwzysoo"
-        ),
+        "api_key": os.environ.get("SILICONFLOW_API_KEY", ""),
         "chat_models": ["inclusionAI/Ling-flash-2.0"],
         "embedding_models": [("Qwen/Qwen3-Embedding-8B", 1024)],
     },
     {
         "name": "DashScope",
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "api_key": os.environ.get(
-            "DASHSCOPE_API_KEY",
-            "sk-07bbb23c21f54e0f8be305c6eab7399d"
-        ),
+        "api_key": os.environ.get("DASHSCOPE_API_KEY", ""),
         "chat_models": [
             "qwen3.6-flash",
             "qwen-flash-character-2026-02-26",
