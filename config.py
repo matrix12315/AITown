@@ -123,6 +123,8 @@ IMPORTANCE_W = 1           # Weight for "how important" factor (poignancy score)
 RETRIEVAL_WEIGHTS = [0.5, 3, 2]  # Relevance matters most (3), then importance (2), recency (0.5)
 
 # REFLECTION: when should an agent "reflect" on their experiences?
-# Every time an agent perceives an event, its poignancy (1-10) is added to a counter.
-# When the counter hits 150, the agent pauses to reflect and generate insights.
-IMPORTANCE_TRIGGER_MAX = 150  # Reflect after accumulating 150 importance points
+# A counter starts at 150 and decreases by each event's poignancy (1-10).
+# When the counter hits 0, the agent pauses to reflect and generate insights.
+# After reflecting, the counter resets to 150.
+# Example: 15 events with poignancy 10 → reflect after 15 events.
+IMPORTANCE_TRIGGER_MAX = 150  # Counter starts here; reflects when it hits 0

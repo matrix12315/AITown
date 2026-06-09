@@ -7,6 +7,7 @@ what they're doing as events. It also filters out duplicates.
 import datetime
 from agent.memory.associative import AssociativeMemory
 from agent.cognitive.perceive import perceive
+from agent.cognitive.reflect import reflection_trigger
 
 
 class FakePersona:
@@ -25,6 +26,8 @@ class FakePersona:
             "vision_r": 4,                                  # can see 4 tiles in each direction
             "retention": 5,                                 # check last 5 events for dedup
             "act_description": act_desc,                    # what the agent is doing
+            "importance_trigger_curr": 150,                 # reflection counter (decreases per event)
+            "importance_ele_n": 0,                          # events since last reflection
         })()
         self.a_mem = AssociativeMemory()
 
@@ -45,6 +48,9 @@ def test_perceive_nearby_agent():
     assert len(events) == 1
     assert events[0]["subject"] == "Maria"
     assert events[0]["object"] == "painting"
+    # Counter should decrease by poignancy (2) for each new event
+    assert me.scratch.importance_trigger_curr == 148
+    assert me.scratch.importance_ele_n == 1
 
 def test_perceive_too_far():
     """
@@ -113,3 +119,36 @@ def test_perceive_multiple_agents():
     assert len(events) == 2
     subjects = {e["subject"] for e in events}
     assert subjects == {"Maria", "Klaus"}
+    # Counter decreases by 2 per event: 150 - 2 - 2 = 146
+    assert me.scratch.importance_trigger_curr == 146
+    assert me.scratch.importance_ele_n == 2
+
+def test_perceive_triggers_reflection():
+    """
+    Test: enough perceived events should bring counter to 0 and trigger reflection.
+
+    Set counter to 4 (needs 2 events × poignancy 2 = 4 to reach 0).
+    After perceive, counter is 0 and reflection_trigger returns True.
+
+    This tests the integration between perceive and reflect modules.
+    """
+    me = FakePersona("Isabella", (10, 10))
+    me.scratch.importance_trigger_curr = 4  # needs 2 events to reach 0
+    maria = FakePersona("Maria", (11, 11), act_desc="painting")
+    klaus = FakePersona("Klaus", (13, 13), act_desc="reading a book")
+    events = perceive(me, None, {"Isabella": me, "Maria": maria, "Klaus": klaus})
+    assert len(events) == 2
+    assert me.scratch.importance_trigger_curr == 0
+    assert me.scratch.importance_ele_n == 2
+    # Now reflection should be triggered — add events to memory so the trigger passes
+    for event in events:
+        me.a_mem.add_event(
+            created=event["created"], expiration=None,
+            s=event["subject"], p=event["predicate"], o=event["object"],
+            description=event["description"],
+            keywords={event["subject"].lower(), event["object"].lower()},
+            poignancy=event["poignancy"],
+            embedding_key=event["description"],
+            embedding=[0.1] * 10, filling=[]
+        )
+    assert reflection_trigger(me) == True

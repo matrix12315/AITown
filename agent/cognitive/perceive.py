@@ -105,4 +105,11 @@ def perceive(persona, maze, personas):
         if spo not in recent_summaries:
             filtered.append(event)
 
+    # Step 5: Update the reflection trigger counter
+    # Each new event's poignancy decreases the counter.
+    # When the counter hits 0, the agent will reflect on the next cycle.
+    for event in filtered:
+        persona.scratch.importance_trigger_curr -= event["poignancy"]
+        persona.scratch.importance_ele_n += 1
+
     return filtered

@@ -7,8 +7,8 @@ The first step of the cognitive loop. Scans nearby tiles for other agents and re
 
 ### test_perceive_nearby_agent
 **Input:** Two agents — "Isabella" at (10,10) and "Maria" at (12,12), within 4-tile vision radius. Maria is "painting in the studio".
-**Asserts:** Returns 1 event with subject="Maria", object="painting"
-**Why it passes:** Distance is |12-10| + |12-10| = 4 tiles, within vision radius of 4. The SPO triple is built from Maria's `act_description`: subject="Maria", predicate="is", first word of description="painting".
+**Asserts:** Returns 1 event with subject="Maria", object="painting". Counter decreases from 150 to 148 (poignancy=2). Event count increases to 1.
+**Why it passes:** Distance is |12-10| = 2 on each axis, within vision radius of 4. The SPO triple is built from Maria's `act_description`. Each filtered event decrements `importance_trigger_curr` by its poignancy (2) and increments `importance_ele_n` by 1.
 
 ### test_perceive_too_far
 **Input:** "Isabella" at (10,10), "Maria" at (50,50) — 40 tiles apart
@@ -27,5 +27,10 @@ The first step of the cognitive loop. Scans nearby tiles for other agents and re
 
 ### test_perceive_multiple_agents
 **Input:** Three agents — "Isabella" at (10,10), "Maria" at (11,11), "Klaus" at (13,13). Both within vision radius.
-**Asserts:** Returns 2 events with subjects {"Maria", "Klaus"}
-**Why it passes:** Both Maria (distance 2) and Klaus (distance 6... wait, |13-10|+|13-10|=6, but the check is per-axis: abs(13-10)=3 <= 4, so both pass). Each generates a separate event.
+**Asserts:** Returns 2 events with subjects {"Maria", "Klaus"}. Counter decreases from 150 to 146 (2 events × poignancy 2). Event count increases to 2.
+**Why it passes:** Both Maria (distance 1 on each axis) and Klaus (distance 3 on each axis) pass the `abs(ox - cx) <= vr` check. Each generates a separate event, and each decrements the counter by 2.
+
+### test_perceive_triggers_reflection
+**Input:** Counter set to 4 (needs 2 events × poignancy 2 to reach 0). Two nearby agents: Maria and Klaus.
+**Asserts:** Counter reaches 0, event count is 2, and `reflection_trigger()` returns True after events are added to memory.
+**Why it passes:** Perceive detects both agents, creates 2 events (poignancy 2 each), and decrements the counter from 4 to 0. The integration test then adds events to memory and verifies that `reflection_trigger` (from reflect.py) recognizes the condition is met. This proves perceive → counter → reflect works end-to-end.
