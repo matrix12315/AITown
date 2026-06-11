@@ -1,19 +1,20 @@
-# AI Town — Project Guide
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Purpose
 Build an AI Town simulation from scratch in Python, inspired by the "Generative Agents: Interactive Simulacra of Human Behavior" paper. The primary learning goal is understanding agent cognitive architecture: memory, reflection, retrieval, planning.
 
 ## About the Developer
 - Veon / Product Manager, also handling some development
-- Uses Claude Code for product demos and learning development
 - Limited coding background — needs detailed comments in implementation files (not test files)
 - Prefers step-by-step execution with explanations, not TDD "expect fail" approach
 - Wants test documentation written to `docs/` after each test suite
 
 ## Run Tests
 ```bash
-cd D:\pythonProject\ccTest\myAITown
-python -m pytest tests/ -v
+python -m pytest tests/ -v                # all tests
+python -m pytest tests/test_plan.py -v    # single module
 ```
 
 ## Git Conventions
