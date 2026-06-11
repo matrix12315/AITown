@@ -98,11 +98,11 @@ def test_get_embedding_no_fallback():
 
 
 def test_generate_returns_error_when_all_fail():
-    """generate() returns 'ERROR' when all providers/models fail."""
+    """generate() returns None when all providers/models fail."""
     client = LLMClient()
     with patch('requests.post') as mock_post, patch('time.sleep'):
         fail_resp = MagicMock()
         fail_resp.status_code = 403
         mock_post.return_value = fail_resp
         result = client.generate("test")
-        assert result == "ERROR"
+        assert result is None

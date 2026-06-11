@@ -109,7 +109,7 @@ class AssociativeMemory:
             "p": "is",
             "o": "burning",
             "description": "The kitchen stove is turned on and a pot of water is boiling.",
-            "embedding_key": [0.0123, -0.0456, 0.789, 0.123],
+            "embedding_key": "The kitchen stove is turned on and a pot of water is boiling.",
             "poignancy": 6,
             "keywords": ["stove", "kitchen", "water"],
             "filling": null
@@ -126,7 +126,7 @@ class AssociativeMemory:
             "p": "is",
             "o": "brewing",
             "description": "The coffee maker is brewing a fresh pot of coffee.",
-            "embedding_key": [0.0912, 0.0234, -0.112, 0.543],
+            "embedding_key": "The coffee maker is brewing a fresh pot of coffee.",
             "poignancy": 2,
             "keywords": ["coffee", "kitchen"],
             "filling": null
@@ -145,7 +145,7 @@ class AssociativeMemory:
             "p": "is",
             "o": "burning",
             "description": "The kitchen stove is turned on and a pot of water is boiling.",
-            "embedding_key": [0.0123, -0.0456, 0.789, 0.123],
+            "embedding_key": "The kitchen stove is turned on and a pot of water is boiling.",
             "poignancy": 6,
             "keywords": ["stove", "kitchen", "water"],
             "filling": null

@@ -65,9 +65,10 @@ def generate_focal_points(persona, llm_client, n=3):
     nodes.sort(key=lambda x: x[0])  # oldest first
     nodes = [i for _, i in nodes]
 
-    # Build a summary of recent memories for the LLM prompt
+    # Build a summary of recent memories for the LLM prompt (cap at 150 = IMPORTANCE_TRIGGER_MAX)
+    recent_nodes = nodes[-1 * min(persona.scratch.importance_ele_n, 150):]
     statements = ""
-    for node in nodes[-1 * persona.scratch.importance_ele_n:]:
+    for node in recent_nodes:
         statements += node.embedding_key + "\n"
 
     # If no memories to reflect on, skip
@@ -76,12 +77,18 @@ def generate_focal_points(persona, llm_client, n=3):
 
     # Ask the LLM to generate questions about the memories
     prompt = f"""{persona.scratch.get_str_iss()}
-What are the {n} most salient high-level questions we can answer about the subjects in the statements?
+I am reflecting on my recent experiences. Based on the statements below,
+what are the {n} most important questions I should think about?
+Focus on patterns, relationships, goals, and feelings — not surface details.
 
 Statements:
 {statements}
 
-Output {n} questions, one per line."""
+Output {n} questions, one per line.
+Example:
+What have I been eating lately?
+How are my relationships with other agents?
+Am I making progress on my goals?"""
 
     response = llm_client.generate(prompt)
     # Parse response: one question per line
@@ -121,15 +128,21 @@ def generate_insights_and_evidence(persona, nodes, llm_client, n=5):
         statements += f"{count}. {node.embedding_key}\n"
 
     # Ask the LLM for insights
+    # Note: an insight is a PATTERN or CONCLUSION drawn from multiple memories,
+    # not a restatement of what happened. Example: "I've been eating alone
+    # frequently" is an insight; "I ate breakfast" is a summary.
     prompt = f"""{persona.scratch.get_str_iss()}
-What {n} high-level insights can you infer from the above statements?
+I am reflecting on my experiences. Based on the statements below,
+what {n} patterns or conclusions can I draw?
 
 Statements:
 {statements}
 
 For each insight, provide the statement numbers that support it.
 Output format: one insight per line, followed by supporting numbers in brackets.
-Example: "Insight text [1, 3]" """
+Example:
+I've been eating alone frequently [0, 1, 2]
+I should invite someone to eat with me [1, 2]"""
 
     response = llm_client.generate(prompt)
 
@@ -147,7 +160,8 @@ Example: "Insight text [1, 3]" """
                 evidence_ids = [int(x.strip()) for x in evidence_str.split(",")]
                 evidence_node_ids = [nodes[i].node_id for i in evidence_ids if i < len(nodes)]
                 insights[insight_text] = evidence_node_ids
-            except:
+            except (ValueError, IndexError):
+                # LLM output non-numeric indices or out-of-range — skip evidence
                 insights[insight_text] = []
         else:
             insights[line] = []

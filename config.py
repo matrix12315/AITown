@@ -12,6 +12,7 @@ Sections:
 4. Agent Hyperparameters — memory, reflection, retrieval tuning
 """
 import os
+import csv
 
 # =============================================================================
 # SECTION 1: API Provider Settings
@@ -128,3 +129,27 @@ RETRIEVAL_WEIGHTS = [0.5, 3, 2]  # Relevance matters most (3), then importance (
 # After reflecting, the counter resets to 150.
 # Example: 15 events with poignancy 10 → reflect after 15 events.
 IMPORTANCE_TRIGGER_MAX = 150  # Counter starts here; reflects when it hits 0
+
+# =============================================================================
+# SECTION 5: World Map Locations
+# =============================================================================
+# Complete list of all locations in the Ville, loaded from arena_blocks.csv.
+# Format: "world:sector:arena" (e.g., "the Ville:Hobbs Cafe:cafe")
+# Used in planning prompts so the LLM knows where agents can go.
+
+def _load_map_locations():
+    """Load all location paths from the arena_blocks CSV file."""
+    locations = []
+    csv_path = os.path.join(ASSETS_DIR, "the_ville", "matrix", "special_blocks", "arena_blocks.csv")
+    if not os.path.exists(csv_path):
+        return []
+    with open(csv_path, 'r') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) >= 4:
+                # CSV format: id, world, sector, arena
+                loc = f"{row[1].strip()}:{row[2].strip()}:{row[3].strip()}"
+                locations.append(loc)
+    return sorted(set(locations))
+
+MAP_LOCATIONS = _load_map_locations()

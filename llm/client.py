@@ -42,7 +42,10 @@ class LLMClient:
         }
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [
+                {"role": "system", "content": "You are a character in a small-town simulation called the Ville. Stay in character. Respond only with the requested output format, no extra commentary."},
+                {"role": "user", "content": prompt}
+            ],
             "temperature": 0.7,
             "max_tokens": 2000,
         }
@@ -92,7 +95,7 @@ class LLMClient:
                         if attempt == max_retries - 1:
                             break  # skip to next model
                         time.sleep(1)
-        return "ERROR"
+        return None
 
     def get_embedding(self, text, max_retries=3):
         """
