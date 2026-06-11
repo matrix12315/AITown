@@ -307,4 +307,310 @@ RELEVANCE_W:            1
 IMPORTANCE_W:           1
 RETRIEVAL_WEIGHTS:      [0.5, 3, 2]  # [recency, relevance, importance]
 IMPORTANCE_TRIGGER_MAX: 150
+MAP_LOCATIONS:          ["the Ville:Hobbs Cafe:cafe", "the Ville:Johnson Park:park", ...]  # 63 locations
 ```
+
+---
+
+## 11. LLM Prompts and Expected Responses
+
+All prompts sent to the LLM across cognitive modules. The system message is prepended to every chat request.
+
+### System Message (llm/client.py)
+```
+You are a character in a small-town simulation called the Ville.
+Stay in character. Respond only with the requested output format, no extra commentary.
+```
+
+---
+
+### Prompt 1: Daily Schedule Generation (plan.py :: generate_daily_schedule)
+
+**When:** Once per day, when `f_daily_schedule` is empty.
+
+**Template:**
+```
+{Name: Isabella Rodriguez
+Age: 34
+Innate traits: friendly, outgoing, hospitable
+Learned traits: Isabella is a cafe owner.
+Currently: Planning a Valentine's Day party.
+Lifestyle: Goes to bed around 11pm, wakes up around 6am.
+Daily plan requirement: Open Hobbs Cafe at 8am, work until 8pm.
+Current Date: Friday May 23}
+Create a daily schedule for today. Each task should have a duration in minutes.
+The total must add up to at least 18 hours (1080 minutes) to cover the full day.
+
+Available locations in the world:
+the Ville:Hobbs Cafe:cafe
+the Ville:Hobbs Cafe:kitchen
+the Ville:Johnson Park:park
+... (63 locations total)
+
+Output format: one task per line, as "task description (X minutes)"
+Example:
+wake up and morning routine (60)
+walk to cafe (15)
+serve coffee to customers (180)
+lunch break (60)
+afternoon cafe work (180)
+close cafe and walk home (30)
+dinner and relax (120)
+evening reading (60)
+sleep (480)
+```
+
+**Expected response:**
+```
+wake up and morning routine (60)
+walk to cafe (15)
+serve coffee to customers (180)
+lunch break (60)
+afternoon cafe work (180)
+close cafe and walk home (30)
+dinner and relax (120)
+evening reading (60)
+sleep (480)
+```
+
+**Parsing:** `parse_schedule()` splits by newline, extracts `(task, duration)` tuples. If total < 1080, appends `("sleep", 1080 - total)`.
+
+---
+
+### Prompt 2: Action Detail Generation (plan.py :: determine_action)
+
+**When:** Each step when `act_check_finished()` returns True and a new action starts.
+
+**Template:**
+```
+{Name: Isabella Rodriguez
+...identity fields...}
+Current task: serve coffee to customers
+Current location: the Ville:Hobbs Cafe:counter
+Current time: 08:00
+
+Available locations (you MUST pick one of these for the address):
+the Ville:Hobbs Cafe:cafe
+the Ville:Hobbs Cafe:kitchen
+the Ville:Johnson Park:park
+... (63 locations total)
+
+Generate the action details for this task. Output exactly these fields, one per line.
+For pronunciatio, use a single Unicode emoji character (not :shortcodes:).
+
+Example output:
+address: the Ville:Hobbs Cafe:cafe
+description: serving coffee to customers
+pronunciatio: ☕
+object_description: coffee machine
+object_pronunciatio: ☕
+```
+
+**Expected response:**
+```
+address: the Ville:Hobbs Cafe:cafe
+description: serving coffee to customers
+pronunciatio: ☕
+object_description: coffee machine
+object_pronunciatio: ☕
+```
+
+**Parsing:** `_parse_and_set_action()` splits by newline, extracts key:value pairs. Calls `scratch.add_new_action()` with parsed values. SPO triple uses first 3 words of description.
+
+---
+
+### Prompt 3: Focal Points Generation (reflect.py :: generate_focal_points)
+
+**When:** When `importance_trigger_curr` hits 0 (after ~150 importance points accumulated).
+
+**Template:**
+```
+{Name: Isabella Rodriguez
+...identity fields...}
+I am reflecting on my recent experiences. Based on the statements below,
+what are the 3 most important questions I should think about?
+Focus on patterns, relationships, goals, and feelings — not surface details.
+
+Statements:
+Isabella is cooking breakfast in the cafe kitchen
+Isabella is serving coffee to customers
+Maria is painting in the studio
+Isabella is eating lunch alone
+...
+
+Output 3 questions, one per line.
+Example:
+What have I been eating lately?
+How are my relationships with other agents?
+Am I making progress on my goals?
+```
+
+**Expected response:**
+```
+What have I been eating lately?
+How are my relationships with other agents?
+Am I making progress on my goals?
+```
+
+**Parsing:** Split by newline, strip whitespace, take first 3 lines. Capped at 150 statements max.
+
+---
+
+### Prompt 4: Insight Generation (reflect.py :: generate_insights_and_evidence)
+
+**When:** For each focal point, after retrieving relevant memories.
+
+**Template:**
+```
+{Name: Isabella Rodriguez
+...identity fields...}
+I am reflecting on my experiences. Based on the statements below,
+what 5 patterns or conclusions can I draw?
+
+Statements:
+0. Isabella is cooking breakfast alone
+1. Isabella is eating lunch alone
+2. Isabella is cooking dinner alone
+3. Isabella talked to Maria about the party
+4. Maria is painting in the studio
+
+For each insight, provide the statement numbers that support it.
+Output format: one insight per line, followed by supporting numbers in brackets.
+Example:
+I've been eating alone frequently [0, 1, 2]
+I should invite someone to eat with me [1, 2]
+```
+
+**Expected response:**
+```
+I've been eating alone frequently [0, 1, 2]
+I should invite someone to eat with me [1, 2]
+Maria seems focused on her art [4]
+Cooking is a major part of my daily routine [0, 2]
+I'm preparing for a party with Maria [3]
+```
+
+**Parsing:** Split by newline, extract insight text and `[evidence_ids]`. Maps to `{insight_text: [node_ids]}`. If no brackets, stores with empty evidence list.
+
+---
+
+## 12. Map Grids (Maze Data)
+
+The world is a 140×100 tile grid. Three CSV files define the map, each stored as a single row of 14,000 values.
+
+### Collision Grid
+```
+Source:  assets/the_ville/matrix/maze/collision_maze.csv
+Shape:   100 rows × 140 columns (stored as single CSV row)
+Values:  0 = walkable, 32125 = blocked
+Access:  collision_grid[y][x]
+Stats:   2064 blocked tiles out of 14000
+```
+
+### Arena Grid
+```
+Source:  assets/the_ville/matrix/maze/arena_maze.csv
+Shape:   100 rows × 140 columns
+Values:  arena ID strings (e.g., "32171") or "0" for no arena
+Access:  arena_grid[y][x]
+Lookup:  arena_id_to_name["32171"] → "the Ville:Hobbs Cafe:cafe"
+Stats:   64 unique arena IDs (63 named + "0")
+```
+
+### Arena ID Mapping
+```
+Source:  assets/the_ville/matrix/special_blocks/arena_blocks.csv
+Format:  id, world, sector, arena
+Example: 32171, the Ville, Hobbs Cafe, cafe
+Count:   63 arenas
+```
+
+---
+
+## 13. MAP_LOCATIONS
+
+Complete list of all locations in the Ville, loaded from arena_blocks.csv.
+
+```
+MAP_LOCATIONS = [
+    "the Ville:Hobbs Cafe:cafe",
+    "the Ville:Hobbs Cafe:kitchen",
+    "the Ville:Johnson Park:park",
+    "the Ville:the Library:reading room",
+    ...  # 63 total
+]
+```
+
+Used in planning prompts so the LLM knows where agents can go. Loaded once at startup by `_load_map_locations()` in config.py.
+
+---
+
+## 14. Pathfinding Result
+
+The path from current position to a target location.
+
+```
+planned_path = [(72, 19), (73, 19), (74, 19), (75, 19)]  # list of (x, y) tiles
+```
+
+- Generated by `find_path()` using BFS on the collision grid
+- Each step, the agent moves one tile: `planned_path.pop(0)`
+- When empty, the agent has arrived at the destination
+- Stored in `scratch.planned_path`
+
+---
+
+## 15. Event Dict (perceive → memory)
+
+What `perceive()` returns. Caller converts to ConceptNode via `add_event()`.
+
+```
+{
+    "subject":      "Maria",
+    "predicate":    "is",
+    "object":       "painting",
+    "description":  "Maria is painting in the studio",
+    "created":      datetime(2026, 5, 23, 10, 30, 0),
+    "poignancy":    2
+}
+```
+
+---
+
+## 16. Action Detail (plan → scratch → execute)
+
+The fields set by `determine_action()` via `scratch.add_new_action()`. These define what the agent is doing RIGHT NOW.
+
+```
+act_address:            "the Ville:Hobbs Cafe:counter"
+act_duration:           120            # minutes
+act_description:        "serving coffee to customers"
+act_pronunciatio:       "☕"
+act_event:              ("Isabella", "is", "serving coffee")   # SPO triple
+act_obj_description:    "coffee machine"
+act_obj_pronunciatio:   "☕"
+act_obj_event:          ("Isabella", "uses", "coffee machine")
+act_start_time:         datetime(2026, 5, 23, 8, 0, 0)   # set to curr_time
+act_path_set:           False          # triggers pathfinding on next execute step
+```
+
+---
+
+## 17. Personas Dict
+
+All agents in the simulation, keyed by name. Passed to `perceive()`.
+
+```
+personas = {
+    "Isabella Rodriguez": <Persona object>,
+    "Maria Lopez":        <Persona object>,
+    "Klaus Mueller":      <Persona object>,
+    ...  # 3 or 25 agents
+}
+```
+
+Each Persona has:
+- `name`: full name string
+- `scratch`: Scratch instance (working memory)
+- `a_mem`: AssociativeMemory instance (long-term memory)
+- `s_mem`: SpatialMemory instance (location knowledge)

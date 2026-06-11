@@ -43,7 +43,7 @@ After each test suite is written, create a test documentation file at `docs/test
 
 ## Implementation Progress
 
-### Completed (67 tests passing)
+### Completed (84 tests passing)
 | Task | File(s) | Status |
 |------|---------|--------|
 | Spatial Memory | `agent/memory/spatial.py` | Done, 7 tests |
@@ -54,11 +54,11 @@ After each test suite is written, create a test documentation file at `docs/test
 | Perceive | `agent/cognitive/perceive.py` | Done, 6 tests |
 | Reflect | `agent/cognitive/reflect.py` | Done, 8 tests |
 | Plan | `agent/cognitive/plan.py` | Done, 10 tests |
+| Execute | `agent/cognitive/execute.py` | Done, 17 tests |
 
 ### Remaining
 | Task | Description |
 |------|-------------|
-| Execute | Move agent, perform actions, update state |
 | Persona | Load agent definitions from JSON, initialize all memory types |
 | Simulation Engine | Main loop: perceive → retrieve → plan → reflect → execute |
 | Frontend | Pygame rendering of map + agents |
