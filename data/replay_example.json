@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "start_time": "2023-02-14 08:00:00",
+    "step_duration": 10,
+    "agents": ["Isabella Rodriguez", "Klaus Mueller", "Maria Lopez"]
+  },
+  "steps": [
+    {
+      "time": "08:00:00",
+      "states": [
+        {"x": 72, "y": 20, "address": "the Ville:Hobbs Cafe:counter", "desc": "serving coffee to customers", "emoji": "☕", "chat": null},
+        {"x": 58, "y": 30, "address": "the Ville:library:main", "desc": "reading a research paper", "emoji": "📖", "chat": null},
+        {"x": 65, "y": 40, "address": "the Ville:Dorm:Maria Lopez's room", "desc": "sleeping", "emoji": "😴", "chat": null}
+      ]
+    },
+    {
+      "time": "08:00:10",
+      "states": [
+        {"x": 72, "y": 20, "address": "the Ville:Hobbs Cafe:counter", "desc": "serving coffee to customers", "emoji": "☕", "chat": null},
+        {"x": 58, "y": 31, "address": "the Ville:library:main", "desc": "walking to desk", "emoji": "🚶", "chat": null},
+        {"x": 65, "y": 40, "address": "the Ville:Dorm:Maria Lopez's room", "desc": "sleeping", "emoji": "😴", "chat": null}
+      ]
+    },
+    {
+      "time": "08:00:20",
+      "states": [
+        {"x": 72, "y": 20, "address": "the Ville:Hobbs Cafe:counter", "desc": "serving coffee to customers", "emoji": "☕", "chat": null},
+        {"x": 59, "y": 31, "address": "the Ville:library:main", "desc": "sitting at desk", "emoji": "📝", "chat": null},
+        {"x": 65, "y": 40, "address": "the Ville:Dorm:Maria Lopez's room", "desc": "sleeping", "emoji": "😴", "chat": null}
+      ]
+    },
+    {
+      "time": "08:00:30",
+      "states": [
+        {"x": 72, "y": 20, "address": "the Ville:Hobbs Cafe:counter", "desc": "serving coffee to customers", "emoji": "☕", "chat": {"with": "Klaus Mueller", "msg": "Hey Klaus! Want some coffee?"}},
+        {"x": 59, "y": 31, "address": "the Ville:library:main", "desc": "writing research paper", "emoji": "📝", "chat": {"with": "Isabella Rodriguez", "msg": "Sure, I'll come over later!"}},
+        {"x": 65, "y": 40, "address": "the Ville:Dorm:Maria Lopez's room", "desc": "sleeping", "emoji": "😴", "chat": null}
+      ]
+    },
+    {
+      "time": "08:00:40",
+      "states": [
+        {"x": 72, "y": 20, "address": "the Ville:Hobbs Cafe:counter", "desc": "serving coffee to customers", "emoji": "☕", "chat": null},
+        {"x": 59, "y": 31, "address": "the Ville:library:main", "desc": "writing research paper", "emoji": "📝", "chat": null},
+        {"x": 65, "y": 41, "address": "the Ville:Dorm:Maria Lopez's room", "desc": "waking up", "emoji": "🥱", "chat": null}
+      ]
+    }
+  ]
+}

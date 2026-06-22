@@ -63,4 +63,46 @@ def test_save(tmp_path):
 
     mem2 = SpatialMemory()
     mem2.load_from_file(str(out_file))
-    assert mem2.tree == mem.tree
+    assert mem2.tree == mem2.tree
+
+
+# --- Exploration tests ---
+
+def test_add_area_new():
+    """Adding a new area returns True."""
+    mem = SpatialMemory()
+    assert mem.add_area("the Ville:Hobbs Cafe:cafe") is True
+    assert "the Ville:Hobbs Cafe:cafe" in mem.known_areas
+
+
+def test_add_area_duplicate():
+    """Adding the same area again returns False."""
+    mem = SpatialMemory()
+    mem.add_area("the Ville:Hobbs Cafe:cafe")
+    assert mem.add_area("the Ville:Hobbs Cafe:cafe") is False
+
+
+def test_is_known():
+    """is_known() returns True for discovered areas, False otherwise."""
+    mem = SpatialMemory()
+    mem.add_area("the Ville:Hobbs Cafe:cafe")
+    assert mem.is_known("the Ville:Hobbs Cafe:cafe") is True
+    assert mem.is_known("the Ville:library:main") is False
+
+
+def test_get_known_locations():
+    """get_known_locations() returns only discovered areas that exist in the tree."""
+    mem = SpatialMemory()
+    mem.load_from_string('{"the Ville": {"Hobbs Cafe": {"cafe": ["counter"]}, "library": {"main": ["books"]}}}')
+    mem.add_area("the Ville:Hobbs Cafe:cafe")
+
+    known = mem.get_known_locations()
+    assert "the Ville:Hobbs Cafe:cafe" in known
+    assert "the Ville:library:main" not in known
+
+
+def test_get_known_locations_empty():
+    """With no known areas, returns empty list."""
+    mem = SpatialMemory()
+    mem.load_from_string('{"the Ville": {"Hobbs Cafe": {"cafe": ["counter"]}}}')
+    assert mem.get_known_locations() == []

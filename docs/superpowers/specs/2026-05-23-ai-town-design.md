@@ -8,6 +8,8 @@ Build a generative agent simulation from scratch, inspired by the "Generative Ag
 
 **Scope**: 3 agents, Smallville-style tile map, real-time web visualization + replay capability.
 
+**Status**: Core memory + cognitive loop complete (96 tests). Simulation engine and frontend in progress.
+
 ## Architecture
 
 ```
@@ -34,11 +36,10 @@ Build a generative agent simulation from scratch, inspired by the "Generative Ag
 ## Project Structure
 
 ```
-myAITown/
-├── config.py              # API keys, model names, paths
-├── main.py                # Entry point
+AITown/
+├── config.py              # API keys, model names, paths, MAP_LOCATIONS
 ├── agent/
-│   ├── persona.py         # Agent class with cognitive loop
+│   ├── persona.py         # Agent class — owns memories, orchestrates cognitive loop
 │   ├── memory/
 │   │   ├── spatial.py     # Where things are (tree structure)
 │   │   ├── associative.py # Events, thoughts, chats (memory stream)
@@ -46,24 +47,24 @@ myAITown/
 │   └── cognitive/
 │       ├── perceive.py    # What's happening around me
 │       ├── retrieve.py    # What do I remember about this
-│       ├── plan.py        # What should I do
-│       ├── reflect.py     # What have I learned
-│       └── execute.py     # Do it
+│       ├── plan.py        # What should I do (prompts inline)
+│       ├── reflect.py     # What have I learned (prompts inline)
+│       └── execute.py     # BFS pathfinding, movement, event recording
 ├── llm/
-│   ├── client.py          # SiliconFlow API wrapper
-│   └── prompts.py         # All prompt templates
+│   └── client.py          # SiliconFlow + DashScope API wrapper
 ├── sim/
-│   ├── engine.py          # Simulation loop
-│   └── api.py             # WebSocket/REST API
-├── web/
-│   ├── index.html         # Canvas-based UI
-│   ├── renderer.js        # Tile map + sprite renderer
-│   └── app.js             # Frontend logic
-└── data/
-    └── personas/          # Agent definitions (JSON)
-
-# Symlink to original assets:
-assets/ → environment/frontend_server/static_dirs/assets/
+│   └── engine.py          # Simulation loop (Task 12, in progress)
+├── web/                   # Frontend (Phase 7, not yet built)
+├── data/
+│   ├── personas/          # Agent definitions (JSON)
+│   │   ├── isabella_rodriguez.json
+│   │   ├── klaus_mueller.json
+│   │   └── maria_lopez.json
+│   ├── replay_example.json  # Replay data format contract
+│   └── simulations/       # Saved simulation recordings (created at runtime)
+└── assets/                # Copied from original project (not symlinked)
+    ├── characters/        # PNG sprites (25 characters)
+    └── the_ville/         # Map data: CSV matrices + Tiled JSON
 ```
 
 ## Memory System
@@ -169,9 +170,10 @@ Two levels of planning:
 
 ### Step 4: Execute (`cognitive/execute.py`)
 - Take the planned action
-- Determine the target tile on the map
-- Calculate path (A* pathfinding)
-- Move agent along path
+- Determine the target tile on the map (resolve address → walkable tiles)
+- Calculate path (BFS pathfinding on 140×100 collision grid)
+- Move agent one tile along path per step
+- Record completed actions as events in associative memory
 - Output: next tile, emoji, action description
 
 ### Step 5: Reflect (`cognitive/reflect.py`)
@@ -182,100 +184,100 @@ Triggered when importance counter reaches threshold (150 points):
 - Store insights as "thought" nodes in associative memory
 - Reset importance counter
 
-## LLM Integration (SiliconFlow)
+## LLM Integration
+
+**API providers** (`config.py`):
+- SiliconFlow (primary): chat + embedding
+- DashScope (fallback): chat only, no embedding fallback (incompatible vector spaces)
 
 **API client** (`llm/client.py`):
 
 1. `generate(prompt) → str` — Send a prompt, get a text response
-   - Used for: planning, reflection, conversation, action generation
-   - Model: configurable chat model
+   - Used for: planning, reflection, action generation
+   - Multi-provider fallback on 403 (insufficient quota)
+   - System message for role-play consistency
 
 2. `get_embedding(text) → list[float]` — Get embedding vector for text
    - Used for: memory storage and retrieval scoring
-   - Model: configurable embedding model
+   - Model: Qwen3-Embedding-8B (1024 dims)
+   - No fallback — different models produce incompatible vector spaces
 
 **Prompt structure**:
-- Each cognitive function has its own prompt template
-- Templates use `!<INPUT N>!` placeholders
-- Responses are parsed from JSON: `{"output": "..."}`
-- Validation + retry logic (3 attempts, then fallback)
+- Prompts are f-strings defined inline within each cognitive module
+- Uses agent identity (`get_str_iss()`) + context (memories, schedule, etc.)
+- Responses are parsed line-by-line (key: value format)
+- Retry logic: 3 attempts per provider, rotate on 403
 
-**Key prompts**:
-1. `wake_up_hour` — "Given this person's lifestyle, when do they wake up?"
-2. `daily_plan` — "Generate today's schedule"
-3. `hourly_schedule` — "What are they doing each hour?"
-4. `decompose_action` — "Break this hourly action into 5-15 min sub-actions"
-5. `action_location` — "Where specifically does this action happen?"
-6. `focal_points` — "What should I reflect on?" (3 topics)
-7. `insights` — "What insights can I draw from these memories?"
-8. `event_triple` — "Convert this description to subject-predicate-object"
-9. `poignancy` — "How important is this event? (1-10)"
-10. `chat` — Generate conversation between two agents
+**Prompts (4 total)**:
+1. `plan.py: generate_daily_schedule()` — "Create a daily schedule for today"
+2. `plan.py: determine_action()` — "Generate action details for this task"
+3. `reflect.py: generate_focal_points()` — "What questions should I reflect on?"
+4. `reflect.py: generate_insights_and_evidence()` — "What patterns can I draw?"
 
 ## Simulation Engine
 
 **Simulation loop** (`sim/engine.py`):
 ```python
 class Simulation:
-    def __init__(self, world, agents, config):
-        self.world = world          # Grid map + locations
-        self.agents = agents        # List of Persona objects
-        self.curr_time = config.start_time  # datetime
-        self.step_size = timedelta(seconds=10)  # 10 seconds per step
+    def __init__(self, agents, llm_client):
+        self.agents = agents        # dict of name -> Persona
+        self.llm_client = llm_client
+        self.curr_time = datetime(2023, 2, 14, 8, 0, 0)
+        self.step_size = timedelta(seconds=10)
+        self.step_count = 0
+        self.history = []           # replay data: one entry per step
+        # Load maze data once
+        self.collision_grid, self.arena_grid, self.arena_id_to_name = load_mazes()
 
     def step(self):
-        for agent in self.agents:
-            next_tile, emoji, desc = agent.move(
-                self.world, self.agents,
-                agent.curr_tile, self.curr_time
-            )
-            # Move agent, broadcast state
-
+        # Build per-step state for replay
+        state = {"time": self.curr_time.strftime("%H:%M:%S"), "states": []}
+        for name, agent in self.agents.items():
+            agent.scratch.curr_time = self.curr_time
+            agent_state = agent.step(maze=self.arena_grid, personas=self.agents)
+            state["states"].append(agent_state)
+        self.history.append(state)
         self.curr_time += self.step_size
-        # Check for new day → trigger long-term planning
+        self.step_count += 1
+        return state
 
     def run(self, steps):
-        for i in range(steps):
+        for _ in range(steps):
             self.step()
-            self.save_state()  # For replay
-            self.broadcast()   # To frontend via WebSocket
+
+    def save(self, sim_name):
+        # Save replay.json (compact, for frontend replay)
+        # Save diary.md (human-readable log)
+        # Save each agent's memory to personas/<name>/
 ```
 
-## Frontend
+**Agent step** (`agent/persona.py`):
+```python
+def step(self, maze=None, personas=None):
+    perceive(self, maze, personas)
+    plan(self, self.llm_client)
+    reflect(self, self.llm_client)
+    if self.scratch.act_check_finished():
+        record_action_event(self, self.llm_client)
+    execute_action(self, self.collision_grid, self.arena_grid, self.arena_id_to_name)
+    return self._get_state()  # dict for frontend
+```
 
-### Modes
+## Frontend (Phase 7, not yet built)
 
-1. **Setup mode** (before simulation):
-   - Click on map to place agents (choose tile position)
-   - Fill in agent details: name, age, personality traits, lifestyle, current goals
-   - Or load from a preset (e.g., "Isabella/Maria/Klaus" template)
-   - Set simulation parameters: time speed, start time
-   - "Start Simulation" button
+### Planned Modes
 
-2. **Live mode** (during simulation):
-   - Real-time agent movement on map
+1. **Live mode** (during simulation):
+   - Real-time agent movement on tile map (Canvas-based)
    - Play/pause, speed control
    - Click agent to inspect (current action, memories, thoughts)
 
-3. **Replay mode** (after simulation):
-   - Load saved simulation JSON
+2. **Replay mode** (after simulation):
+   - Load `replay.json` from saved simulation
    - Scrub through time steps
    - Same inspection capabilities
 
-### Agent Setup Form Fields
-```
-Name:           [________________]
-First name:     [________________]
-Age:            [__]
-Innate traits:  [________________]  (e.g., "curious, energetic, friendly")
-Learned traits: [________________]  (e.g., "painter, enjoys morning walks")
-Currently:      [________________]  (e.g., "preparing for art show")
-Lifestyle:      [________________]  (e.g., "early riser, vegetarian")
-Living area:    [________________]  (e.g., "the villa:reza house")
-Start position: [click on map]
-```
-
-### WebSocket API
+### Planned WebSocket API
 
 ```
 Client → Server:
@@ -283,27 +285,59 @@ Client → Server:
   {"type": "pause"}
   {"type": "resume"}
   {"type": "set_speed", "speed": 3}
-  {"type": "inspect_agent", "name": "Isabella Rodriguez"}
 
 Server → Client:
   {"type": "state", "step": 42, "time": "08:07:00",
    "agents": {"Isabella": {"x": 58, "y": 39, "action": "...", "emoji": "🎨"}, ...}}
-  {"type": "agent_detail", "name": "Isabella",
-   "memories": [...], "thoughts": [...], "schedule": [...]}
 ```
 
 ## Data Persistence
 
-- Simulation state saved to `data/simulations/<name>/` after each step
-- Contains: agent memory snapshots, world state, step history
-- Replay loads from these files
-- Recording format: JSON with all agent states at each time step
+Simulation results saved to `data/simulations/<name>/`:
+
+```
+data/simulations/feb14/
+├── replay.json     # compact replay data for frontend loading
+├── diary.md        # human-readable log of agent actions
+└── personas/       # agent memory dumps
+    ├── Isabella Rodriguez/
+    │   ├── nodes.json
+    │   ├── embeddings.json
+    │   └── kw_strength.json
+    └── Klaus Mueller/
+```
+
+**replay.json** — compact, array-indexed by step:
+```json
+{
+  "meta": {"start_time": "...", "step_duration": 10, "agents": [...]},
+  "steps": [
+    {"time": "08:00:00", "states": [
+      {"x": 72, "y": 20, "address": "...", "desc": "...", "emoji": "☕", "chat": null}
+    ]}
+  ]
+}
+```
+- `states[i]` maps to `meta.agents[i]`
+- Each state: `[x, y, address, description, emoji, chat]`
+- `chat` is null most steps, only set during conversations
+
+**diary.md** — grouped by agent, consecutive identical actions merged:
+```markdown
+## Isabella Rodriguez
+### 08:00 — 10:30
+- serving coffee to customers @ the Ville:Hobbs Cafe:counter
+```
+- Generated by script (not LLM) — grouping + formatting only
+- Human-readable, no parsing needed
 
 ## Implementation Order
 
-1. **Phase 1: Core memory system** — spatial, associative, scratch memory classes
-2. **Phase 2: LLM client** — SiliconFlow API wrapper with generate + embedding
-3. **Phase 3: Cognitive loop** — perceive, retrieve, plan, reflect, execute
-4. **Phase 4: Simulation engine** — time loop, agent orchestration
-5. **Phase 5: Frontend** — setup UI, live visualization, replay
-6. **Phase 6: Integration** — connect all pieces, test with 3 agents
+1. **Phase 1: Project scaffold** — config.py, directory structure ✅
+2. **Phase 2: Memory system** — spatial, associative, scratch ✅ (24 tests)
+3. **Phase 3: LLM client** — SiliconFlow + DashScope wrapper ✅ (7 tests)
+4. **Phase 4: Cognitive loop** — perceive, retrieve, plan, reflect, execute ✅ (53 tests)
+5. **Phase 5: Persona class** — agent with memory + cognitive loop ✅ (12 tests)
+6. **Phase 6: Simulation engine** — time loop, replay, diary 🔲 (in progress)
+7. **Phase 7: Frontend** — canvas renderer, live/replay modes 🔲
+8. **Phase 8: Integration** — chat generation, full end-to-end test 🔲

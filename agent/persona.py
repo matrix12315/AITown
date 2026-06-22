@@ -94,6 +94,17 @@ class Persona:
         if self.scratch.curr_tile is None:
             self.scratch.curr_tile = self._find_spawn_tile()
 
+        # ---- Exploration: initialize with known locations from JSON ----
+        # Agents start knowing a set of locations defined in their JSON config.
+        # This typically includes their living area, workplace, and nearby places.
+        # They discover the rest by moving through the world.
+        known_locations = persona_data.get("known_locations", [])
+        for loc in known_locations:
+            self.s_mem.add_area(loc)
+        # Ensure living_area is always known (in case JSON omits it)
+        if self.scratch.living_area:
+            self.s_mem.add_area(self.scratch.living_area)
+
     def _find_spawn_tile(self):
         """
         Find a walkable tile in the agent's living_area for spawning.
@@ -141,7 +152,8 @@ class Persona:
             dict with the agent's current state for frontend rendering.
         """
         # Step 1: Perceive — detect what's happening around the agent
-        perceive(self, maze, personas)
+        perceive(self, maze, personas,
+                 arena_grid=self.arena_grid, arena_id_to_name=self.arena_id_to_name)
 
         # Step 2: Plan — decide what to do (generate schedule if needed,
         # determine next action if current one is finished)

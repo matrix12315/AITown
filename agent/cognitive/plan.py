@@ -117,8 +117,12 @@ def generate_daily_schedule(persona, llm_client):
     # Build the prompt — identity already includes daily_plan_req, don't repeat it
     identity = persona.scratch.get_str_iss()
 
-    # Build the location list for the LLM
-    loc_list = "\n".join(MAP_LOCATIONS)
+    # Build the location list for the LLM — only known locations (exploration)
+    known_locs = persona.s_mem.get_known_locations()
+    # Fallback to all locations if spatial memory is empty (shouldn't happen)
+    if not known_locs:
+        known_locs = MAP_LOCATIONS
+    loc_list = "\n".join(known_locs)
 
     prompt = f"""{identity}
 Create a daily schedule for today. Each task should have a duration in minutes.
@@ -190,8 +194,11 @@ def determine_action(persona, llm_client):
     identity = persona.scratch.get_str_iss()
     current_location = persona.scratch.act_address or "unknown"
 
-    # Build the location list for the LLM
-    loc_list = "\n".join(MAP_LOCATIONS)
+    # Build the location list for the LLM — only known locations (exploration)
+    known_locs = persona.s_mem.get_known_locations()
+    if not known_locs:
+        known_locs = MAP_LOCATIONS
+    loc_list = "\n".join(known_locs)
 
     prompt = f"""{identity}
 Current task: {task_desc}

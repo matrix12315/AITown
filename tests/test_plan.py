@@ -104,11 +104,21 @@ class FakeScratch:
         self.act_path_set = False
 
 
+class FakeSpatialMemory:
+    """Minimal spatial memory stub for plan tests."""
+    def __init__(self):
+        self.known_areas = set()
+
+    def get_known_locations(self):
+        return list(self.known_areas)
+
+
 class FakePersona:
     """Minimal persona stub with FakeScratch."""
     def __init__(self):
         self.name = "Isabella"
         self.scratch = FakeScratch()
+        self.s_mem = FakeSpatialMemory()
 
 
 # --- Tests ---

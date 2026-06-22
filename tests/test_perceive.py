@@ -6,6 +6,7 @@ what they're doing as events. It also filters out duplicates.
 """
 import datetime
 from agent.memory.associative import AssociativeMemory
+from agent.memory.spatial import SpatialMemory
 from agent.cognitive.perceive import perceive
 from agent.cognitive.reflect import reflection_trigger
 
@@ -30,6 +31,7 @@ class FakePersona:
             "importance_ele_n": 0,                          # events since last reflection
         })()
         self.a_mem = AssociativeMemory()
+        self.s_mem = SpatialMemory()  # for exploration tracking
 
 
 def test_perceive_nearby_agent():
@@ -152,3 +154,79 @@ def test_perceive_triggers_reflection():
             embedding=[0.1] * 10, filling=[]
         )
     assert reflection_trigger(me) == True
+
+
+# --- Exploration tests ---
+
+def test_perceive_discovers_new_area():
+    """
+    Test: entering a new area creates a discovery event.
+
+    Isabella at tile (5, 5). The arena grid says tile (5, 5) is arena ID "100",
+    which maps to "the Ville:Hobbs Cafe:cafe". This area is NOT in her known_areas.
+
+    Expected: perceive returns one discovery event with poignancy=8.
+    The area is added to s_mem.known_areas.
+    """
+    me = FakePersona("Isabella", (5, 5))
+
+    # Set up arena grid: 10x10, tile (5,5) = arena "100"
+    arena_grid = [["0"] * 10 for _ in range(10)]
+    arena_grid[5][5] = "100"
+    arena_id_to_name = {"100": "the Ville:Hobbs Cafe:cafe"}
+
+    events = perceive(me, None, {"Isabella": me},
+                      arena_grid=arena_grid, arena_id_to_name=arena_id_to_name)
+
+    # Should have one discovery event
+    assert len(events) == 1
+    assert events[0]["subject"] == "Isabella"
+    assert events[0]["predicate"] == "discovered"
+    assert events[0]["object"] == "the Ville:Hobbs Cafe:cafe"
+    assert events[0]["poignancy"] == 8
+
+    # Area should now be known
+    assert me.s_mem.is_known("the Ville:Hobbs Cafe:cafe")
+
+
+def test_perceive_no_duplicate_discovery():
+    """
+    Test: entering an already-known area does NOT create a discovery event.
+
+    Isabella already knows "the Ville:Hobbs Cafe:cafe". She enters it again.
+    No discovery event should be created.
+    """
+    me = FakePersona("Isabella", (5, 5))
+    me.s_mem.add_area("the Ville:Hobbs Cafe:cafe")  # already known
+
+    arena_grid = [["0"] * 10 for _ in range(10)]
+    arena_grid[5][5] = "100"
+    arena_id_to_name = {"100": "the Ville:Hobbs Cafe:cafe"}
+
+    events = perceive(me, None, {"Isabella": me},
+                      arena_grid=arena_grid, arena_id_to_name=arena_id_to_name)
+
+    # No discovery event (already known), no other agents nearby
+    assert len(events) == 0
+
+
+def test_perceive_discovery_and_agent():
+    """
+    Test: discovering a new area AND seeing another agent produces both events.
+
+    Isabella enters a new area and sees Maria nearby.
+    Expected: 1 discovery event (poignancy=8) + 1 agent event (poignancy=2).
+    """
+    me = FakePersona("Isabella", (5, 5))
+    maria = FakePersona("Maria", (6, 6), act_desc="painting")
+
+    arena_grid = [["0"] * 10 for _ in range(10)]
+    arena_grid[5][5] = "100"
+    arena_id_to_name = {"100": "the Ville:Hobbs Cafe:cafe"}
+
+    events = perceive(me, None, {"Isabella": me, "Maria": maria},
+                      arena_grid=arena_grid, arena_id_to_name=arena_id_to_name)
+
+    assert len(events) == 2
+    types = {e["predicate"] for e in events}
+    assert types == {"discovered", "is"}

@@ -16,6 +16,13 @@ This tells the agent:
 - In that room there are: a refrigerator, a counter, and a coffee machine
 
 Agents use this to know where they can go and what they can interact with.
+
+Exploration:
+    Agents DON'T know the full world at start. They begin knowing only their
+    living area. As they move through the world, they discover new areas.
+    The known_areas set tracks what the agent has explored so far.
+    Planning only considers known locations — agents can't go somewhere
+    they haven't discovered yet.
 """
 import json
 
@@ -25,6 +32,10 @@ class SpatialMemory:
         # The tree is a nested dictionary. Each key is a location name,
         # and the value is either another dict (sub-locations) or a list (objects).
         self.tree = {}
+
+        # Exploration: set of known arena paths (e.g., "the Ville:Hobbs Cafe:cafe")
+        # Starts empty, grows as the agent discovers new areas.
+        self.known_areas = set()
 
     def load_from_string(self, json_str):
         """Load the world tree from a JSON string (for testing or inline data)."""
@@ -111,6 +122,35 @@ class SpatialMemory:
         """
         parts = location.split(":")
         return ":".join(parts[:3])
+
+    def add_area(self, area_path):
+        """
+        Mark an area as known (discovered by the agent).
+
+        Args:
+            area_path: colon-separated path, e.g., "the Ville:Hobbs Cafe:cafe"
+
+        Returns:
+            True if this is a NEW discovery, False if already known.
+        """
+        if area_path in self.known_areas:
+            return False
+        self.known_areas.add(area_path)
+        return True
+
+    def is_known(self, area_path):
+        """Check if the agent has discovered this area."""
+        return area_path in self.known_areas
+
+    def get_known_locations(self):
+        """
+        Return only the locations the agent has discovered.
+
+        Unlike get_all_locations() which returns everything in the tree,
+        this returns only areas in known_areas.
+        """
+        all_locs = self.get_all_locations()
+        return [loc for loc in all_locs if loc in self.known_areas]
 
     def save(self, filepath):
         """Save the tree to a JSON file."""
