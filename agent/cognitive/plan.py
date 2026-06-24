@@ -27,6 +27,7 @@ Connection to the paper:
 """
 import datetime
 from config import MAP_LOCATIONS
+from agent.prompts import get_prompts
 
 
 def parse_schedule(schedule_text):
@@ -124,26 +125,14 @@ def generate_daily_schedule(persona, llm_client):
         known_locs = MAP_LOCATIONS
     loc_list = "\n".join(known_locs)
 
-    prompt = f"""{identity}
-Create a daily schedule for today. Each task should have a duration in minutes.
-The total must add up to at least 18 hours (1080 minutes) to cover the full day.
+    # Use language-specific prompt template from registry
+    prompts = get_prompts()
+    prompt = prompts.DAILY_SCHEDULE.format(
+        identity=identity,
+        locations=loc_list
+    )
 
-Available locations in the world:
-{loc_list}
-
-Output format: one task per line, as "task description (X minutes)"
-Example:
-wake up and morning routine (60)
-walk to cafe (15)
-serve coffee to customers (180)
-lunch break (60)
-afternoon cafe work (180)
-close cafe and walk home (30)
-dinner and relax (120)
-evening reading (60)
-sleep (480)"""
-
-    response = llm_client.generate(prompt)
+    response = llm_client.generate(prompt, system_prompt=prompts.SYSTEM_PROMPT)
     if not response:
         return []
 
@@ -200,25 +189,17 @@ def determine_action(persona, llm_client):
         known_locs = MAP_LOCATIONS
     loc_list = "\n".join(known_locs)
 
-    prompt = f"""{identity}
-Current task: {task_desc}
-Current location: {current_location}
-Current time: {persona.scratch.curr_time.strftime('%H:%M')}
+    # Use language-specific prompt template from registry
+    prompts = get_prompts()
+    prompt = prompts.ACTION_DETAIL.format(
+        identity=identity,
+        task_desc=task_desc,
+        current_location=current_location,
+        current_time=persona.scratch.curr_time.strftime('%H:%M'),
+        locations=loc_list
+    )
 
-Available locations (you MUST pick one of these for the address):
-{loc_list}
-
-Generate the action details for this task. Output exactly these fields, one per line.
-For pronunciatio, use a single Unicode emoji character (not :shortcodes:).
-
-Example output:
-address: the Ville:Hobbs Cafe:cafe
-description: serving coffee to customers
-pronunciatio: ☕
-object_description: coffee machine
-object_pronunciatio: ☕"""
-
-    response = llm_client.generate(prompt)
+    response = llm_client.generate(prompt, system_prompt=prompts.SYSTEM_PROMPT)
     if not response:
         # Fallback: use task description directly
         _set_action_from_task(persona, task_desc, task_duration)

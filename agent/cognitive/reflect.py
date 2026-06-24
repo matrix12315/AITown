@@ -37,6 +37,7 @@ Connection to the paper:
 """
 import datetime
 from config import IMPORTANCE_TRIGGER_MAX
+from agent.prompts import get_prompts
 
 
 def generate_focal_points(persona, llm_client, n=3):
@@ -76,21 +77,14 @@ def generate_focal_points(persona, llm_client, n=3):
         return []
 
     # Ask the LLM to generate questions about the memories
-    prompt = f"""{persona.scratch.get_str_iss()}
-I am reflecting on my recent experiences. Based on the statements below,
-what are the {n} most important questions I should think about?
-Focus on patterns, relationships, goals, and feelings — not surface details.
+    prompts = get_prompts()
+    prompt = prompts.FOCAL_POINTS.format(
+        identity=persona.scratch.get_str_iss(),
+        statements=statements,
+        n=n
+    )
 
-Statements:
-{statements}
-
-Output {n} questions, one per line.
-Example:
-What have I been eating lately?
-How are my relationships with other agents?
-Am I making progress on my goals?"""
-
-    response = llm_client.generate(prompt)
+    response = llm_client.generate(prompt, system_prompt=prompts.SYSTEM_PROMPT)
     # Parse response: one question per line
     focal_points = [line.strip() for line in response.strip().split("\n") if line.strip()]
     return focal_points[:n]
@@ -131,20 +125,14 @@ def generate_insights_and_evidence(persona, nodes, llm_client, n=5):
     # Note: an insight is a PATTERN or CONCLUSION drawn from multiple memories,
     # not a restatement of what happened. Example: "I've been eating alone
     # frequently" is an insight; "I ate breakfast" is a summary.
-    prompt = f"""{persona.scratch.get_str_iss()}
-I am reflecting on my experiences. Based on the statements below,
-what {n} patterns or conclusions can I draw?
+    prompts = get_prompts()
+    prompt = prompts.INSIGHTS.format(
+        identity=persona.scratch.get_str_iss(),
+        statements=statements,
+        n=n
+    )
 
-Statements:
-{statements}
-
-For each insight, provide the statement numbers that support it.
-Output format: one insight per line, followed by supporting numbers in brackets.
-Example:
-I've been eating alone frequently [0, 1, 2]
-I should invite someone to eat with me [1, 2]"""
-
-    response = llm_client.generate(prompt)
+    response = llm_client.generate(prompt, system_prompt=prompts.SYSTEM_PROMPT)
 
     # Parse the response
     insights = {}

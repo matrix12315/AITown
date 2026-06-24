@@ -34,8 +34,14 @@ class LLMClient:
     def __init__(self):
         pass
 
-    def _request_chat(self, provider, model, prompt):
+    def _request_chat(self, provider, model, prompt, system_prompt=None):
         """Send a chat request to a specific provider/model."""
+        if system_prompt is None:
+            system_prompt = (
+                "You are a character in a small-town simulation called the Ville. "
+                "Stay in character. Respond only with the requested output format, "
+                "no extra commentary."
+            )
         headers = {
             "Authorization": f"Bearer {provider['api_key']}",
             "Content-Type": "application/json"
@@ -43,7 +49,7 @@ class LLMClient:
         payload = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "You are a character in a small-town simulation called the Ville. Stay in character. Respond only with the requested output format, no extra commentary."},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7,
@@ -72,18 +78,23 @@ class LLMClient:
         )
         return resp
 
-    def generate(self, prompt, max_retries=3):
+    def generate(self, prompt, system_prompt=None, max_retries=3):
         """
         Generate text using chat model with provider/model fallback.
 
         Order: try each provider → try each model in that provider → retry on transient errors.
         On 403 (insufficient), skip to next model immediately.
+
+        Args:
+            prompt: user prompt text
+            system_prompt: optional system prompt (defaults to English simulation prompt)
+            max_retries: retry count per model on transient errors
         """
         for provider in API_PROVIDERS:
             for model in provider["chat_models"]:
                 for attempt in range(max_retries):
                     try:
-                        resp = self._request_chat(provider, model, prompt)
+                        resp = self._request_chat(provider, model, prompt, system_prompt)
                         if resp.status_code == 200:
                             return resp.json()["choices"][0]["message"]["content"]
                         if resp.status_code == 403:

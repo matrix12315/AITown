@@ -41,27 +41,29 @@ After each test suite is written, create a test documentation file at `docs/test
 2. **Chat: multi-provider fallback** — on 403 (insufficient quota), rotate to next model/provider. Chat outputs are text, no vector space issue.
 3. **Embedding dimension: 1024** — Qwen3-Embedding-8B supports 32-4096; 1024 chosen for balance.
 4. **Map hierarchy** — always 3 levels deep: `world:sector:arena`. `get_path_for_location` is hardcoded to this.
+5. **Language support** — `config.LANGUAGE` ("en" or "zh") controls prompt templates and persona directory. Prompt registry (`agent/prompts/`) selects templates by language. Persona files live in `data/personas/{lang}/`.
 
 ## Implementation Progress
 
-### Completed (104 tests passing)
+### Completed (136 tests passing)
 | Task | File(s) | Status |
 |------|---------|--------|
-| Spatial Memory | `agent/memory/spatial.py` | Done, 7 tests |
+| Spatial Memory | `agent/memory/spatial.py` | Done, 12 tests |
 | Associative Memory | `agent/memory/associative.py` | Done, 10 tests |
 | Scratch Memory | `agent/memory/scratch.py` | Done, 7 tests |
 | LLM Client | `llm/client.py` | Done, 7 tests |
 | Retrieve | `agent/cognitive/retrieve.py` | Done, 12 tests |
-| Perceive | `agent/cognitive/perceive.py` | Done, 6 tests |
+| Perceive | `agent/cognitive/perceive.py` | Done, 9 tests |
 | Reflect | `agent/cognitive/reflect.py` | Done, 8 tests |
 | Plan | `agent/cognitive/plan.py` | Done, 10 tests |
 | Execute | `agent/cognitive/execute.py` | Done, 17 tests |
 | Persona | `agent/persona.py` | Done, 12 tests |
+| Prompt Registry | `agent/prompts/` | Done, 18 tests |
+| Simulation Engine | `sim/engine.py` | Done, 14 tests |
 
 ### Remaining
 | Task | Description |
 |------|-------------|
-| Simulation Engine | Main loop: perceive → retrieve → plan → reflect → execute |
 | Frontend | Pygame rendering of map + agents |
 | Integration | Wire everything together |
 

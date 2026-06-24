@@ -100,6 +100,11 @@ MAP_WIDTH = 140            # Map is 140 tiles wide
 MAP_HEIGHT = 100           # Map is 100 tiles tall
 STEP_DURATION_SECONDS = 10 # Each simulation step = 10 seconds of game time
 
+# Language for the simulation: "en" (English) or "zh" (Chinese)
+# Controls: prompt templates, persona file directory, diary output
+# All agents in a simulation share the same language setting.
+LANGUAGE = "en"
+
 # =============================================================================
 # SECTION 4: Agent Hyperparameters
 # =============================================================================

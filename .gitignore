@@ -3,4 +3,4 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .env
-.claude/
+.claude/data/simulations/
