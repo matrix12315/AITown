@@ -44,18 +44,24 @@ class LLMClient:
         with open(self.log_path, 'w') as f:
             pass
 
-    def _log(self, call_type, provider_name, model, prompt, response):
-        """Append one LLM call to the log file."""
+    def _log(self, call_type, provider_name, model, prompt, response, system_prompt=None):
+        """Append one LLM call to the log file as formatted JSON."""
         entry = {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "type": call_type,
             "provider": provider_name,
             "model": model,
-            "prompt": prompt[:2000] if prompt else "",
-            "response": response[:2000] if response else "",
+            "system_prompt": system_prompt,
+            "prompt": prompt,
+            "response": response,
         }
         with open(self.log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            # Write formatted JSON, then replace \n in strings with actual newlines
+            raw = json.dumps(entry, ensure_ascii=False, indent=2)
+            # Replace escaped newlines in string values with real newlines
+            readable = raw.replace("\\n", "\n")
+            f.write(readable)
+            f.write("\n")
 
     def _request_chat(self, provider, model, prompt, system_prompt=None):
         """Send a chat request to a specific provider/model."""
@@ -126,7 +132,7 @@ class LLMClient:
                         if resp.status_code == 200:
                             content = resp.json()["choices"][0]["message"]["content"]
                             print(f"[LLM] Success from {provider['name']}/{model}")
-                            self._log("chat", provider['name'], model, prompt, content)
+                            self._log("chat", provider['name'], model, prompt, content, system_prompt)
                             return content
                         if resp.status_code == 403:
                             print(f"[LLM] 403 from {provider['name']}/{model}, trying next model")
@@ -158,7 +164,7 @@ class LLMClient:
                         resp = self._request_embedding(provider, model, dimension, text)
                         if resp.status_code == 200:
                             emb = resp.json()["data"][0]["embedding"]
-                            self._log("embedding", provider['name'], model, text[:200], f"OK [{len(emb)} dims]")
+                            self._log("embedding", provider['name'], model, text, f"OK [{len(emb)} dims]")
                             return emb
                         if resp.status_code == 403:
                             print(f"[LLM] 403 from {provider['name']}/{model}, trying next model")

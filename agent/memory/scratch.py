@@ -98,6 +98,8 @@ class Scratch:
         self.f_daily_schedule = []
         # Original hourly schedule (backup copy)
         self.f_daily_schedule_hourly_org = []
+        # When the schedule was generated (used to calculate current task index)
+        self.schedule_start_time = None
 
         # ---- Group 8: Current Action State ----
         # What the agent is doing RIGHT NOW. Updated each step.
@@ -203,8 +205,8 @@ class Scratch:
                 x = x + datetime.timedelta(minutes=1)
             end_time = x + datetime.timedelta(minutes=self.act_duration)
 
-        # Compare times (HH:MM:SS format)
-        if end_time.strftime("%H:%M:%S") == self.curr_time.strftime("%H:%M:%S"):
+        # Compare times — use >= so we don't miss the exact moment
+        if self.curr_time >= end_time:
             return True
         return False
 
@@ -242,20 +244,29 @@ class Scratch:
         Figure out which task in the daily schedule the agent should be doing NOW.
 
         Walks through f_daily_schedule, accumulating durations until we pass
-        the current time. Returns the index of the current task.
+        the elapsed time since the schedule started. Returns the index of the current task.
 
         Example: schedule = [("breakfast", 30), ("work", 120), ("lunch", 60)]
-        At 9:00am (540 minutes since midnight): breakfast (30min) + work (120min) = 150min
-        540 > 150, so we're past "work" → check next... returns index based on elapsed time.
+        If schedule started at 08:00 and current time is 09:00 → 60 min elapsed
+        breakfast (30min) + work (120min) = 150min
+        60 < 150, so we're in "work" → returns index 1.
         """
-        if not self.curr_time:
+        if not self.curr_time or not self.f_daily_schedule:
             return 0
-        today_min_elapsed = self.curr_time.hour * 60 + self.curr_time.minute + advance
+
+        # Calculate elapsed time since schedule started
+        if self.schedule_start_time:
+            elapsed_delta = self.curr_time - self.schedule_start_time
+            min_elapsed = int(elapsed_delta.total_seconds() / 60) + advance
+        else:
+            # Fallback: use time since midnight (old behavior)
+            min_elapsed = self.curr_time.hour * 60 + self.curr_time.minute + advance
+
         curr_index = 0
-        elapsed = 0
+        accumulated = 0
         for task, duration in self.f_daily_schedule:
-            elapsed += duration
-            if elapsed > today_min_elapsed:
+            accumulated += duration
+            if accumulated > min_elapsed:
                 return curr_index
             curr_index += 1
         return curr_index

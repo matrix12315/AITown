@@ -28,6 +28,7 @@ DAILY_SCHEDULE = """{identity}
 Create a daily schedule for today. Each task should have a duration in minutes.
 The total must add up to exactly 24 hours (1440 minutes) to cover the full day.
 Include sleep as the last task.
+The current time is {start_time}. Start the schedule from this time.
 
 Available locations in the world:
 {locations}

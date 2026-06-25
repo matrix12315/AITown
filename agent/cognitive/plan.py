@@ -127,9 +127,11 @@ def generate_daily_schedule(persona, llm_client):
 
     # Use language-specific prompt template from registry
     prompts = get_prompts()
+    start_time_str = persona.scratch.curr_time.strftime("%H:%M") if persona.scratch.curr_time else "08:00"
     prompt = prompts.DAILY_SCHEDULE.format(
         identity=identity,
-        locations=loc_list
+        locations=loc_list,
+        start_time=start_time_str
     )
 
     response = llm_client.generate(prompt, system_prompt=prompts.SYSTEM_PROMPT)
@@ -151,6 +153,8 @@ def generate_daily_schedule(persona, llm_client):
     # Store the schedule
     persona.scratch.f_daily_schedule = schedule
     persona.scratch.f_daily_schedule_hourly_org = list(schedule)
+    # Record when the schedule started (used by get_f_daily_schedule_index)
+    persona.scratch.schedule_start_time = persona.scratch.curr_time
 
     return schedule
 

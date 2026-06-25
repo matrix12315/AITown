@@ -55,6 +55,9 @@ API_PROVIDERS = [
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "api_key": os.environ.get("DASHSCOPE_API_KEY", ""),
         "chat_models": [
+            "qwen3.6-plus-2026-04-02",
+            "qwen3.6-max-preview",
+            "qwen3.6-27b",
             "qwen3.6-flash",
             "qwen-flash-character-2026-02-26",
             "qwen3.6-flash-2026-04-16",

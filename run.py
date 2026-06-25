@@ -13,7 +13,7 @@ from sim.engine import Simulation
 from config import PERSONAS_DIR, LANGUAGE
 import os
 
-STEPS = int(sys.argv[1]) if len(sys.argv) > 1 else 48
+STEPS = int(sys.argv[1]) if len(sys.argv) > 1 else 5
 
 # Build persona paths based on LANGUAGE setting
 persona_dir = os.path.join(PERSONAS_DIR, LANGUAGE)
