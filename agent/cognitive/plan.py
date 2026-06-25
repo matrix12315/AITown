@@ -143,9 +143,10 @@ def generate_daily_schedule(persona, llm_client):
         return []
 
     # Validate total duration — pad with sleep if schedule is too short
+    # 24 hours = 1440 minutes
     total = sum(dur for _, dur in schedule)
-    if total < 1080:
-        schedule.append(("sleep", 1080 - total))
+    if total < 1440:
+        schedule.append(("sleep", 1440 - total))
 
     # Store the schedule
     persona.scratch.f_daily_schedule = schedule

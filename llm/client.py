@@ -54,6 +54,7 @@ class LLMClient:
             ],
             "temperature": 0.7,
             "max_tokens": 2000,
+            "enable_thinking": False,  # 7x faster; skip Qwen reasoning mode
         }
         resp = requests.post(
             f"{provider['base_url']}/chat/completions",
@@ -91,21 +92,28 @@ class LLMClient:
             max_retries: retry count per model on transient errors
         """
         for provider in API_PROVIDERS:
+            if not provider["api_key"]:
+                print(f"[LLM] Skipping {provider['name']} — API key not set")
+                continue
             for model in provider["chat_models"]:
                 for attempt in range(max_retries):
                     try:
+                        print(f"[LLM] Calling {provider['name']}/{model} (attempt {attempt+1})")
                         resp = self._request_chat(provider, model, prompt, system_prompt)
                         if resp.status_code == 200:
+                            print(f"[LLM] Success from {provider['name']}/{model}")
                             return resp.json()["choices"][0]["message"]["content"]
                         if resp.status_code == 403:
                             print(f"[LLM] 403 from {provider['name']}/{model}, trying next model")
                             break  # skip to next model
-                        # Other errors: retry
+                        print(f"[LLM] HTTP {resp.status_code} from {provider['name']}/{model}: {resp.text[:200]}")
                         time.sleep(1)
                     except Exception as e:
+                        print(f"[LLM] Error from {provider['name']}/{model}: {e}")
                         if attempt == max_retries - 1:
                             break  # skip to next model
                         time.sleep(1)
+        print("[LLM] All providers failed, returning None")
         return None
 
     def get_embedding(self, text, max_retries=3):
@@ -116,18 +124,24 @@ class LLMClient:
         if not text:
             text = "this is blank"
         for provider in API_PROVIDERS:
+            if not provider["api_key"]:
+                continue
             for model, dimension in provider["embedding_models"]:
                 for attempt in range(max_retries):
                     try:
+                        print(f"[LLM] Embedding: {provider['name']}/{model}")
                         resp = self._request_embedding(provider, model, dimension, text)
                         if resp.status_code == 200:
                             return resp.json()["data"][0]["embedding"]
                         if resp.status_code == 403:
                             print(f"[LLM] 403 from {provider['name']}/{model}, trying next model")
                             break
+                        print(f"[LLM] Embedding HTTP {resp.status_code}")
                         time.sleep(1)
                     except Exception as e:
+                        print(f"[LLM] Embedding error: {e}")
                         if attempt == max_retries - 1:
                             break
                         time.sleep(1)
+        print("[LLM] All embedding providers failed")
         return []

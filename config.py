@@ -13,6 +13,11 @@ Sections:
 """
 import os
 import csv
+from dotenv import load_dotenv
+
+# Load .env file from project root (contains API keys)
+# override=True: .env values always win over shell environment variables
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)
 
 # =============================================================================
 # SECTION 1: API Provider Settings
@@ -42,7 +47,7 @@ API_PROVIDERS = [
         "name": "SiliconFlow",
         "base_url": "https://api.siliconflow.cn/v1",
         "api_key": os.environ.get("SILICONFLOW_API_KEY", ""),
-        "chat_models": ["inclusionAI/Ling-flash-2.0"],
+        "chat_models": [],
         "embedding_models": [("Qwen/Qwen3-Embedding-8B", 1024)],
     },
     {
@@ -98,7 +103,7 @@ SIMULATIONS_DIR = os.path.join(DATA_DIR, "simulations")  # Saved simulation reco
 TILE_SIZE = 32             # Each tile is 32×32 pixels
 MAP_WIDTH = 140            # Map is 140 tiles wide
 MAP_HEIGHT = 100           # Map is 100 tiles tall
-STEP_DURATION_SECONDS = 10 # Each simulation step = 10 seconds of game time
+STEP_DURATION_SECONDS = 1800  # Each simulation step = 30 minutes (for fast full-day testing)
 
 # Language for the simulation: "en" (English) or "zh" (Chinese)
 # Controls: prompt templates, persona file directory, diary output

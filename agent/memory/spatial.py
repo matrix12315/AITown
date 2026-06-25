@@ -146,11 +146,10 @@ class SpatialMemory:
         """
         Return only the locations the agent has discovered.
 
-        Unlike get_all_locations() which returns everything in the tree,
-        this returns only areas in known_areas.
+        Returns the known_areas set directly, since the tree may not be
+        loaded (exploration-based discovery doesn't use the tree).
         """
-        all_locs = self.get_all_locations()
-        return [loc for loc in all_locs if loc in self.known_areas]
+        return list(self.known_areas)
 
     def save(self, filepath):
         """Save the tree to a JSON file."""

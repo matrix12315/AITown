@@ -17,6 +17,7 @@ Usage:
     state = persona.step()  # run one cognitive loop iteration
 """
 import json
+import datetime
 
 from agent.memory.scratch import Scratch
 from agent.memory.associative import AssociativeMemory
@@ -152,8 +153,21 @@ class Persona:
             dict with the agent's current state for frontend rendering.
         """
         # Step 1: Perceive — detect what's happening around the agent
-        perceive(self, maze, personas,
-                 arena_grid=self.arena_grid, arena_id_to_name=self.arena_id_to_name)
+        perceived = perceive(self, maze, personas,
+                             arena_grid=self.arena_grid,
+                             arena_id_to_name=self.arena_id_to_name)
+
+        # Step 1b: Store perceived events in long-term memory
+        for event in perceived:
+            embedding = self.llm_client.get_embedding(event["description"])
+            keywords = set(event["description"].lower().split()[:5])
+            expiration = event["created"] + datetime.timedelta(days=30)
+            self.a_mem.add_event(
+                event["created"], expiration,
+                event["subject"], event["predicate"], event["object"],
+                event["description"], keywords, event["poignancy"],
+                event["description"], embedding, []
+            )
 
         # Step 2: Plan — decide what to do (generate schedule if needed,
         # determine next action if current one is finished)

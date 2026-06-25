@@ -26,7 +26,8 @@ SYSTEM_PROMPT = (
 
 DAILY_SCHEDULE = """{identity}
 Create a daily schedule for today. Each task should have a duration in minutes.
-The total must add up to at least 18 hours (1080 minutes) to cover the full day.
+The total must add up to exactly 24 hours (1440 minutes) to cover the full day.
+Include sleep as the last task.
 
 Available locations in the world:
 {locations}
