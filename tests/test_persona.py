@@ -219,8 +219,9 @@ class TestStep:
 
         p.step(maze=arena, personas={p.name: p})
 
-        # STEP_DURATION_SECONDS = 10
-        assert p.scratch.curr_time == datetime.datetime(2023, 2, 14, 8, 0, 10)
+        from config import STEP_DURATION_SECONDS
+        expected = datetime.datetime(2023, 2, 14, 8, 0, 0) + datetime.timedelta(seconds=STEP_DURATION_SECONDS)
+        assert p.scratch.curr_time == expected
 
     def test_step_calls_plan(self, persona_json_path, mock_llm, sample_grid):
         """step() calls plan() which generates a daily schedule."""

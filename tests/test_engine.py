@@ -101,9 +101,11 @@ class TestSimulationStep:
     def test_advances_time(self, mock_load, persona_jsons, mock_llm, sample_grids):
         mock_load.return_value = sample_grids
         from sim.engine import Simulation
+        from config import STEP_DURATION_SECONDS
         sim = Simulation(persona_jsons, llm_client=mock_llm)
         sim.step()
-        assert sim.curr_time == datetime(2023, 2, 14, 8, 0, 10)
+        expected = datetime(2023, 2, 14, 8, 0, 0) + __import__('datetime').timedelta(seconds=STEP_DURATION_SECONDS)
+        assert sim.curr_time == expected
         assert sim.step_count == 1
 
     @patch("sim.engine.load_mazes")

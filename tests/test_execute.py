@@ -231,10 +231,12 @@ def test_execute_action_advances_time():
     """
     Test: execute_action advances curr_time by STEP_DURATION_SECONDS.
     """
+    from config import STEP_DURATION_SECONDS
     p = FakePersona()
     p.scratch.curr_time = datetime.datetime(2026, 5, 23, 8, 0, 0)
     execute_action(p)
-    assert p.scratch.curr_time == datetime.datetime(2026, 5, 23, 8, 0, 10)
+    expected = datetime.datetime(2026, 5, 23, 8, 0, 0) + datetime.timedelta(seconds=STEP_DURATION_SECONDS)
+    assert p.scratch.curr_time == expected
 
 
 def test_execute_action_sets_path():

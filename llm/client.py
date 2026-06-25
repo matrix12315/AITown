@@ -16,7 +16,10 @@ Provider configuration is imported from config.py (single source of truth).
 """
 import requests
 import time
-from config import API_PROVIDERS
+import json
+import os
+from datetime import datetime
+from config import API_PROVIDERS, PROJECT_ROOT
 
 
 # Disable proxy for direct API access (SiliconFlow/DashScope don't need proxies)
@@ -31,8 +34,28 @@ class LLMClient:
     moves to the next model. If all models fail for a provider, tries the
     next provider.
     """
-    def __init__(self):
-        pass
+    def __init__(self, log_dir=None):
+        # Setup LLM log file
+        if log_dir is None:
+            log_dir = os.path.join(PROJECT_ROOT, "data", "simulations")
+        os.makedirs(log_dir, exist_ok=True)
+        self.log_path = os.path.join(log_dir, "llm_log.jsonl")
+        # Clear previous log
+        with open(self.log_path, 'w') as f:
+            pass
+
+    def _log(self, call_type, provider_name, model, prompt, response):
+        """Append one LLM call to the log file."""
+        entry = {
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "type": call_type,
+            "provider": provider_name,
+            "model": model,
+            "prompt": prompt[:2000] if prompt else "",
+            "response": response[:2000] if response else "",
+        }
+        with open(self.log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     def _request_chat(self, provider, model, prompt, system_prompt=None):
         """Send a chat request to a specific provider/model."""
@@ -101,8 +124,10 @@ class LLMClient:
                         print(f"[LLM] Calling {provider['name']}/{model} (attempt {attempt+1})")
                         resp = self._request_chat(provider, model, prompt, system_prompt)
                         if resp.status_code == 200:
+                            content = resp.json()["choices"][0]["message"]["content"]
                             print(f"[LLM] Success from {provider['name']}/{model}")
-                            return resp.json()["choices"][0]["message"]["content"]
+                            self._log("chat", provider['name'], model, prompt, content)
+                            return content
                         if resp.status_code == 403:
                             print(f"[LLM] 403 from {provider['name']}/{model}, trying next model")
                             break  # skip to next model
@@ -132,7 +157,9 @@ class LLMClient:
                         print(f"[LLM] Embedding: {provider['name']}/{model}")
                         resp = self._request_embedding(provider, model, dimension, text)
                         if resp.status_code == 200:
-                            return resp.json()["data"][0]["embedding"]
+                            emb = resp.json()["data"][0]["embedding"]
+                            self._log("embedding", provider['name'], model, text[:200], f"OK [{len(emb)} dims]")
+                            return emb
                         if resp.status_code == 403:
                             print(f"[LLM] 403 from {provider['name']}/{model}, trying next model")
                             break
