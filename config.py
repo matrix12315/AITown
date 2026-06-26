@@ -141,7 +141,7 @@ RETRIEVAL_WEIGHTS = [0.5, 3, 2]  # Relevance matters most (3), then importance (
 # When the counter hits 0, the agent pauses to reflect and generate insights.
 # After reflecting, the counter resets to 150.
 # Example: 15 events with poignancy 10 → reflect after 15 events.
-IMPORTANCE_TRIGGER_MAX = 150  # Counter starts here; reflects when it hits 0
+IMPORTANCE_TRIGGER_MAX = 20  # Counter starts here; reflects when it hits 0
 
 # =============================================================================
 # SECTION 5: World Map Locations

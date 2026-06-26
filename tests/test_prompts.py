@@ -60,7 +60,8 @@ class TestEnglishPrompts:
             task_desc="cooking",
             current_location="kitchen",
             current_time="10:00",
-            locations="loc1"
+            locations="loc1",
+            nearby_agents="(no one nearby)"
         )
         assert "cooking" in result
         assert "10:00" in result
@@ -102,7 +103,8 @@ class TestChinesePrompts:
             task_desc="做饭",
             current_location="厨房",
             current_time="10:00",
-            locations="地点1"
+            locations="地点1",
+            nearby_agents="(附近没有人)"
         )
         assert "做饭" in result
         assert "10:00" in result

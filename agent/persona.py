@@ -171,7 +171,11 @@ class Persona:
 
         # Step 2: Plan — decide what to do (generate schedule if needed,
         # determine next action if current one is finished)
-        plan(self, self.llm_client)
+        plan(self, self.llm_client, personas)
+
+        # Step 2b: Handle ongoing conversations
+        if self.scratch.chat_rounds_left > 0 and personas:
+            self._handle_conversation(personas)
 
         # Step 3: Reflect — generate insights if enough experiences accumulated
         reflect(self, self.llm_client)
@@ -210,3 +214,57 @@ class Persona:
             "act_duration": self.scratch.act_duration,
             "chatting_with": self.scratch.chatting_with,
         }
+
+    def _handle_conversation(self, personas):
+        """
+        Handle ongoing conversation — generate rounds and manage state.
+
+        Each step, generates rounds_per_step = STEP_DURATION_SECONDS / 120 rounds.
+        When conversation ends, generates summary and stores in memory.
+
+        Args:
+            personas: dict of all agents
+        """
+        from agent.cognitive.chat import (
+            generate_round, generate_reply, generate_summary,
+            store_chat_memory, clear_chat_state
+        )
+        from config import STEP_DURATION_SECONDS
+
+        other_name = self.scratch.chatting_with
+        if not other_name or other_name not in personas:
+            clear_chat_state(self)
+            return
+
+        other = personas[other_name]
+
+        # Calculate how many rounds fit in one step
+        rounds_per_step = max(1, STEP_DURATION_SECONDS // 120)  # 1 round = 2 min
+
+        # Generate rounds
+        for _ in range(rounds_per_step):
+            if self.scratch.chat_rounds_left <= 0:
+                break
+
+            # Generate message from this agent
+            msg = generate_round(self, other, self.llm_client)
+            if msg:
+                # Generate reply from other agent
+                generate_reply(self, other, self.llm_client)
+
+            # Decrement rounds
+            self.scratch.chat_rounds_left -= 1
+            other.scratch.chat_rounds_left -= 1
+
+        # Check if conversation is over
+        if self.scratch.chat_rounds_left <= 0:
+            # Generate summary
+            summary = generate_summary(self, other, self.llm_client)
+            if summary:
+                # Store in both agents' memories
+                store_chat_memory(self, other_name, summary, self.llm_client)
+                store_chat_memory(other, self.name, summary, self.llm_client)
+
+            # Clear chat state on both agents
+            clear_chat_state(self)
+            clear_chat_state(other)

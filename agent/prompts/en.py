@@ -11,13 +11,26 @@ Variables (use .format() to fill in):
     {current_time} — formatted time string (HH:MM)
     {statements}  — newline-separated memory statements
     {n}           — number of items to generate
+    {nearby_agents} — agents at the same location
+    {other_name}  — name of agent being talked to
+    {other_action} — what the other agent is doing
+    {my_action}   — what I am currently doing
+    {chat_type}   — "small_talk" or "deep_talk"
+    {current_round} — current round number
+    {total_rounds} — total rounds for this conversation
+    {chat_history} — formatted conversation so far
+    {name}        — agent name (for summary)
+    {summary}     — conversation summary text
 """
 
 # System prompt sent with every LLM request (role: "system")
 SYSTEM_PROMPT = (
     "You are a character in a small-town simulation called the Ville. "
     "Stay in character. Respond only with the requested output format, "
-    "no extra commentary."
+    "no extra commentary.\n\n"
+    "When you see other characters nearby, you may choose to talk to them:\n"
+    "- small_talk: 1-5 rounds, casual greeting or quick exchange about what you're both doing\n"
+    "- deep_talk: 6-20 rounds, meaningful conversation about topics relevant to your personality and interests"
 )
 
 # =============================================================================
@@ -51,18 +64,27 @@ Current task: {task_desc}
 Current location: {current_location}
 Current time: {current_time}
 
+Nearby agents (people you can see at this location):
+{nearby_agents}
+
 Available locations (you MUST pick one of these for the address):
 {locations}
 
 Generate the action details for this task. Output exactly these fields, one per line.
 For pronunciatio, use a single Unicode emoji character (not :shortcodes:).
 
+Also decide if you want to chat with any nearby agent:
+- chat_type: none / small_talk / deep_talk
+- chat_with: agent name (or "none")
+
 Example output:
 address: the Ville:Hobbs Cafe:cafe
 description: serving coffee to customers
 pronunciatio: ☕
 object_description: coffee machine
-object_pronunciatio: ☕"""
+object_pronunciatio: ☕
+chat_type: small_talk
+chat_with: Klaus Mueller"""
 
 
 # =============================================================================
@@ -96,3 +118,29 @@ Output format: one insight per line, followed by supporting numbers in brackets.
 Example:
 I've been eating alone frequently [0, 1, 2]
 I should invite someone to eat with me [1, 2]"""
+
+
+# =============================================================================
+# Chat Module Prompts
+# =============================================================================
+
+CHAT_PROMPT = """{identity}
+
+I am currently {my_action}.
+I am talking to {other_name} who is {other_action}.
+This is a {chat_type} (round {current_round} of {total_rounds}).
+
+Conversation so far:
+{chat_history}
+
+Generate my next message. Stay in character, be natural.
+Output exactly:
+message: <what I say>"""
+
+
+SUMMARY_PROMPT = """Summarize this conversation between {name} and {other_name} in 1-2 sentences.
+
+Conversation:
+{chat_history}
+
+Output a brief summary of what was discussed and any notable outcomes."""

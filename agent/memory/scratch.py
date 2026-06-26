@@ -122,6 +122,13 @@ class Scratch:
         self.chat = None                   # The conversation text
         self.chatting_with_buffer = {}     # Buffer for multi-turn conversations
         self.chatting_end_time = None      # When the chat ends
+        # Conversation system fields
+        self.chat_type = None              # "small_talk" or "deep_talk"
+        self.chat_rounds_left = 0          # Rounds remaining in current conversation
+        self.chat_total_rounds = 0         # Total rounds for this conversation
+        self.chat_history = []             # List of {"from": name, "msg": text}
+        self.chat_cooldown_until = None    # Datetime when this agent can chat again
+        self.last_chat_with = {}           # {name: datetime} — per-pair cooldown
 
         # ---- Group 10: Pathfinding ----
         self.act_path_set = False    # Has the path been calculated?

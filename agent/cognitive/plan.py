@@ -30,6 +30,44 @@ from config import MAP_LOCATIONS
 from agent.prompts import get_prompts
 
 
+def _build_nearby_agents(persona, personas=None):
+    """
+    Build a string of nearby agents for the LLM prompt.
+
+    Only includes agents that are within vision radius and not sleeping.
+
+    Args:
+        persona: the agent looking around
+        personas: dict of all agents (if available)
+
+    Returns:
+        Formatted string of nearby agents, or "(no one nearby)"
+    """
+    if not personas:
+        return "(no one nearby)"
+
+    cx, cy = persona.scratch.curr_tile or (0, 0)
+    vr = persona.scratch.vision_r
+
+    nearby = []
+    for other_name, other in personas.items():
+        if other_name == persona.name:
+            continue
+        if not other.scratch.curr_tile:
+            continue
+        ox, oy = other.scratch.curr_tile
+        if abs(ox - cx) <= vr and abs(oy - cy) <= vr:
+            # Check if agent is sleeping
+            desc = other.scratch.act_description or "idle"
+            if "sleep" in desc.lower():
+                continue
+            nearby.append(f"- {other_name} ({desc})")
+
+    if not nearby:
+        return "(no one nearby)"
+    return "\n".join(nearby)
+
+
 def parse_schedule(schedule_text):
     """
     Parse LLM output into (task, duration) tuples.
@@ -159,7 +197,7 @@ def generate_daily_schedule(persona, llm_client):
     return schedule
 
 
-def determine_action(persona, llm_client):
+def determine_action(persona, llm_client, personas=None):
     """
     Given the current schedule slot, generate full action details.
 
@@ -172,6 +210,7 @@ def determine_action(persona, llm_client):
     Args:
         persona: the agent
         llm_client: API client for text generation
+        personas: dict of all agents (for nearby agents info)
     """
     # Find which task in the schedule is current
     idx = persona.scratch.get_f_daily_schedule_index()
@@ -194,6 +233,9 @@ def determine_action(persona, llm_client):
         known_locs = MAP_LOCATIONS
     loc_list = "\n".join(known_locs)
 
+    # Build nearby agents list (who can this agent see?)
+    nearby_agents = _build_nearby_agents(persona, personas)
+
     # Use language-specific prompt template from registry
     prompts = get_prompts()
     prompt = prompts.ACTION_DETAIL.format(
@@ -201,7 +243,8 @@ def determine_action(persona, llm_client):
         task_desc=task_desc,
         current_location=current_location,
         current_time=persona.scratch.curr_time.strftime('%H:%M'),
-        locations=loc_list
+        locations=loc_list,
+        nearby_agents=nearby_agents
     )
 
     response = llm_client.generate(prompt, system_prompt=prompts.SYSTEM_PROMPT)
@@ -211,7 +254,57 @@ def determine_action(persona, llm_client):
         return
 
     # Parse the LLM response
-    _parse_and_set_action(persona, response, task_desc, task_duration)
+    chat_type, chat_with = _parse_and_set_action(persona, response, task_desc, task_duration)
+
+    # Start conversation if LLM decided to chat
+    if chat_type in ("small_talk", "deep_talk") and chat_with != "none":
+        _start_conversation(persona, chat_with, chat_type, personas)
+
+
+def _start_conversation(persona, other_name, chat_type, personas):
+    """
+    Start a conversation between persona and another agent.
+
+    Sets up chat state on both agents. Actual message generation
+    happens in persona.step().
+
+    Args:
+        persona: the agent initiating the conversation
+        other_name: name of the agent to talk to
+        chat_type: "small_talk" or "deep_talk"
+        personas: dict of all agents
+    """
+    if not personas or other_name not in personas:
+        return
+
+    other = personas[other_name]
+
+    # Check cooldowns
+    from agent.cognitive.chat import can_chat
+    if not can_chat(persona, other_name):
+        return
+    if not can_chat(other, persona.name):
+        return
+
+    # Set total rounds based on chat type
+    import random
+    if chat_type == "small_talk":
+        total_rounds = random.randint(1, 5)
+    else:  # deep_talk
+        total_rounds = random.randint(6, 20)
+
+    # Set chat state on both agents
+    persona.scratch.chatting_with = other_name
+    persona.scratch.chat_type = chat_type
+    persona.scratch.chat_rounds_left = total_rounds
+    persona.scratch.chat_total_rounds = total_rounds
+    persona.scratch.chat_history = []
+
+    other.scratch.chatting_with = persona.name
+    other.scratch.chat_type = chat_type
+    other.scratch.chat_rounds_left = total_rounds
+    other.scratch.chat_total_rounds = total_rounds
+    other.scratch.chat_history = []
 
 
 def _parse_and_set_action(persona, response, task_desc, task_duration):
@@ -231,6 +324,8 @@ def _parse_and_set_action(persona, response, task_desc, task_duration):
     pronunciatio = "🔄"
     obj_desc = "none"
     obj_pron = "⬜"
+    chat_type = "none"
+    chat_with = "none"
 
     # Parse each field from the response
     for line in response.strip().split("\n"):
@@ -251,6 +346,10 @@ def _parse_and_set_action(persona, response, task_desc, task_duration):
             obj_desc = value if value.lower() != "none" else "none"
         elif key in ("object_pronunciatio", "object pron"):
             obj_pron = value if value.lower() != "none" else "⬜"
+        elif key == "chat_type":
+            chat_type = value.lower() if value else "none"
+        elif key == "chat_with":
+            chat_with = value if value.lower() != "none" else "none"
 
     # Build SPO triple — use first 3 words as the "object" for meaningful summaries
     words = description.split() if description else ["idle"]
@@ -273,6 +372,9 @@ def _parse_and_set_action(persona, response, task_desc, task_duration):
         act_obj_pronunciatio=obj_pron if obj_pron != "⬜" else None,
         act_obj_event=obj_event,
     )
+
+    # Return chat decision for the caller to handle
+    return chat_type, chat_with
 
 
 def _set_action_from_task(persona, task_desc, task_duration):
@@ -300,7 +402,7 @@ def _set_action_from_task(persona, task_desc, task_duration):
     )
 
 
-def plan(persona, llm_client):
+def plan(persona, llm_client, personas=None):
     """
     Main entry point — called each simulation step.
 
@@ -312,6 +414,7 @@ def plan(persona, llm_client):
     Args:
         persona: the agent
         llm_client: API client for text generation
+        personas: dict of all agents (for nearby agents info)
     """
     # Step 1: Generate daily schedule if needed
     if not persona.scratch.f_daily_schedule:
@@ -323,4 +426,4 @@ def plan(persona, llm_client):
 
     # Step 3: If current action is done, determine next action
     if persona.scratch.act_check_finished():
-        determine_action(persona, llm_client)
+        determine_action(persona, llm_client, personas)

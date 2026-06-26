@@ -11,12 +11,25 @@
     {current_time}     — 当前时间（HH:MM 格式）
     {statements}       — 记忆陈述列表（每行一条）
     {n}                — 需要生成的项目数量
+    {nearby_agents}    — 同一地点的其他角色
+    {other_name}       — 对话对象的名字
+    {other_action}     — 对话对象正在做的事
+    {my_action}        — 我正在做的事
+    {chat_type}        — "small_talk" 或 "deep_talk"
+    {current_round}    — 当前轮次
+    {total_rounds}     — 总轮次
+    {chat_history}     — 已有的对话记录
+    {name}             — 角色名字（用于摘要）
+    {summary}          — 对话摘要
 """
 
 # 系统提示词：每次 LLM 请求都会发送（role: "system"）
 SYSTEM_PROMPT = (
     '你是一个名为"小镇"的模拟世界中的角色。'
-    '保持角色扮演。只按要求的格式输出，不要添加额外的解释。'
+    '保持角色扮演。只按要求的格式输出，不要添加额外的解释。\n\n'
+    '当你看到附近的其他角色时，你可以选择与他们交谈：\n'
+    '- small_talk：1-5轮，随意问候或简短交流\n'
+    '- deep_talk：6-20轮，关于你个性和兴趣的深入对话'
 )
 
 # =============================================================================
@@ -50,18 +63,27 @@ ACTION_DETAIL = """{identity}
 当前位置：{current_location}
 当前时间：{current_time}
 
+附近的其他角色（你可以看到他们）：
+{nearby_agents}
+
 可用地点（你必须从以下地点中选择一个作为行动地址）：
 {locations}
 
 为当前任务生成行动详情。每行输出一个字段。
 pronunciatio 使用一个 Unicode 表情符号（不要用 :短代码:）。
 
+同时决定是否想和附近的某个角色聊天：
+- chat_type: none / small_talk / deep_talk
+- chat_with: 角色名字（或 "none"）
+
 示例输出：
 address: 小镇:霍布斯咖啡馆:咖啡厅
 description: 为顾客冲泡咖啡
 pronunciatio: ☕
 object_description: 咖啡机
-object_pronunciatio: ☕"""
+object_pronunciatio: ☕
+chat_type: small_talk
+chat_with: Klaus Mueller"""
 
 
 # =============================================================================
@@ -95,3 +117,29 @@ INSIGHTS = """{identity}
 示例：
 我经常一个人吃饭 [0, 1, 2]
 我应该邀请别人一起吃饭 [1, 2]"""
+
+
+# =============================================================================
+# 对话模块提示词
+# =============================================================================
+
+CHAT_PROMPT = """{identity}
+
+我正在{my_action}。
+我正在和{other_name}聊天，他/她正在{other_action}。
+这是一次{chat_type}（第{current_round}轮，共{total_rounds}轮）。
+
+对话记录：
+{chat_history}
+
+生成我的下一句话。保持角色扮演，自然一些。
+输出格式：
+message: <我要说的话>"""
+
+
+SUMMARY_PROMPT = """用1-2句话总结{name}和{other_name}之间的这段对话。
+
+对话记录：
+{chat_history}
+
+简要总结讨论了什么以及任何值得注意的结果。"""
