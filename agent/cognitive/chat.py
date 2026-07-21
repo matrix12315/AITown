@@ -157,22 +157,13 @@ def store_chat_memory(persona, other_name, summary, llm_client):
         summary: conversation summary text
         llm_client: API client for embeddings
     """
-    import datetime
-
     created = persona.scratch.curr_time
     expiration = created + datetime.timedelta(days=30)
-
-    # Store as chat node
-    persona.a_mem.add_chat(
-        created,
-        persona.name, other_name,
-        summary
-    )
-
-    # Store as event with poignancy=6
-    embedding = llm_client.get_embedding(summary)
     keywords = set(summary.lower().split()[:5])
-    persona.a_mem.add_event(
+    embedding = llm_client.get_embedding(summary)
+
+    # Store as chat node (uses full add_chat signature)
+    persona.a_mem.add_chat(
         created, expiration,
         persona.name, "chatted_with", other_name,
         summary, keywords, 6,

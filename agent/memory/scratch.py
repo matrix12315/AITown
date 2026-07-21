@@ -81,10 +81,10 @@ class Scratch:
 
         # ---- Group 6: Reflection Trigger ----
         # Counter: accumulates poignancy (importance) of perceived events.
-        # When it hits 0, the agent reflects.
-        # Starts at 150, decreases as events are perceived.
-        self.importance_trigger_max = 150
-        self.importance_trigger_curr = self.importance_trigger_max
+        # When it hits 0, the agent reflects. Value from config.
+        from config import IMPORTANCE_TRIGGER_MAX
+        self.importance_trigger_max = IMPORTANCE_TRIGGER_MAX
+        self.importance_trigger_curr = IMPORTANCE_TRIGGER_MAX
         # Number of events accumulated since last reflection
         self.importance_ele_n = 0
         # How many thoughts to generate per reflection
@@ -201,9 +201,12 @@ class Scratch:
             return True
 
         # Calculate end time
-        if self.chatting_with:
-            # If chatting, use the chat end time
+        if self.chatting_with and self.chatting_end_time:
+            # If chatting with known end time, use it
             end_time = self.chatting_end_time
+        elif self.chatting_with:
+            # Conversation in progress — action is NOT finished
+            return False
         else:
             # Align start time to minute boundary
             x = self.act_start_time

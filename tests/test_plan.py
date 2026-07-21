@@ -174,7 +174,8 @@ def test_generate_daily_schedule():
     Test: LLM generates a schedule and it's stored in scratch.
 
     Mock LLM returns a 3-task schedule (255 min total).
-    Since total < 1440, a "sleep" task is auto-appended to cover the full day.
+    Since total < remaining time, a "sleep" task is auto-appended.
+    curr_time=08:00 → remaining = 15*60-1 = 959 min. Sleep = 959-255 = 704.
     Expected: 4 tasks (3 from LLM + 1 sleep padding).
     """
     p = FakePersona()
@@ -187,7 +188,8 @@ def test_generate_daily_schedule():
     result = generate_daily_schedule(p, llm)
     assert len(result) == 4  # 3 from LLM + 1 sleep padding
     assert result[-1][0] == "sleep"
-    assert result[-1][1] == 1185  # 1440 - 255 = 1185
+    # curr_time=08:00 → remaining until 23:59 = 959 min. 959 - 255 = 704
+    assert result[-1][1] == 704
     assert p.scratch.f_daily_schedule == result
     assert p.scratch.f_daily_schedule_hourly_org == result
 

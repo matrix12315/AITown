@@ -149,5 +149,5 @@ class TestStoreChatMemory:
 
         store_chat_memory(p, "Bob", "We talked about coffee.", llm)
 
+        # add_chat stores summary as a chat node (with event-like signature)
         p.a_mem.add_chat.assert_called_once()
-        p.a_mem.add_event.assert_called_once()

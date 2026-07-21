@@ -96,11 +96,18 @@ class Simulation:
 
         # Run cognitive loop for each agent
         for name, agent in self.agents.items():
-            agent_state = agent.step(
+            agent.step(
                 maze=self.arena_grid,
                 personas=self.agents
             )
-            step_state["states"].append(_to_replay_state(agent_state))
+
+        # Handle conversations AFTER all agents have planned
+        # This ensures both agents have their actions set before chatting
+        self._handle_conversations()
+
+        # Collect states AFTER conversations (so chat field is populated)
+        for name, agent in self.agents.items():
+            step_state["states"].append(_to_replay_state(agent._get_state()))
 
         # Record and advance
         self.history.append(step_state)
@@ -123,6 +130,73 @@ class Simulation:
         for _ in range(steps):
             results.append(self.step())
         return results
+
+    def _handle_conversations(self):
+        """
+        Handle all active conversations after all agents have planned.
+
+        This runs AFTER all agents' cognitive loops, so both agents have
+        their actions set. Each conversation pair is only processed once.
+        """
+        from agent.cognitive.chat import (
+            generate_round, generate_reply, generate_summary,
+            store_chat_memory, clear_chat_state
+        )
+
+        processed = set()
+        for agent_name, agent in self.agents.items():
+            if agent.scratch.chat_rounds_left <= 0:
+                continue
+
+            other_name = agent.scratch.chatting_with
+            if not other_name:
+                continue
+
+            # Only process each pair once (use sorted tuple as key)
+            pair = tuple(sorted([agent_name, other_name]))
+            if pair in processed:
+                continue
+            processed.add(pair)
+
+            if other_name not in self.agents:
+                clear_chat_state(agent)
+                continue
+
+            other = self.agents[other_name]
+
+            # Calculate how many rounds fit in one step
+            rounds_per_step = max(1, STEP_DURATION_SECONDS // 120)  # 1 round = 2 min
+
+            for _ in range(rounds_per_step):
+                if agent.scratch.chat_rounds_left <= 0:
+                    break
+
+                # Generate message from agent
+                generate_round(agent, other, agent.llm_client)
+                # Generate reply from other
+                generate_reply(agent, other, other.llm_client)
+
+                # Decrement rounds on both
+                agent.scratch.chat_rounds_left -= 1
+                other.scratch.chat_rounds_left -= 1
+
+            # Check if conversation is over
+            if agent.scratch.chat_rounds_left <= 0:
+                # Generate separate summaries for each agent's perspective
+                summary_a = generate_summary(agent, other, agent.llm_client)
+                summary_b = generate_summary(other, agent, other.llm_client)
+
+                if summary_a:
+                    store_chat_memory(agent, other_name, summary_a, agent.llm_client)
+                if summary_b:
+                    store_chat_memory(other, agent_name, summary_b, other.llm_client)
+
+                clear_chat_state(agent)
+                clear_chat_state(other)
+
+                # After conversation, let each agent consider replanning
+                _maybe_replan(agent, summary_a)
+                _maybe_replan(other, summary_b)
 
     def save(self, sim_name):
         """
@@ -173,6 +247,75 @@ class Simulation:
         }
 
 
+def _maybe_replan(persona, summary):
+    """
+    After a conversation, let the LLM decide if the agent should replan.
+
+    If replanning, clears the current schedule and generates a new one
+    that only covers the remaining time until midnight.
+
+    Args:
+        persona: the agent who just finished a conversation
+        summary: conversation summary text (from their perspective)
+    """
+    if not summary:
+        return
+
+    from agent.prompts import get_prompts
+    prompts = get_prompts()
+
+    # Build schedule with actual times
+    schedule_lines = []
+    if persona.scratch.schedule_start_time:
+        t = persona.scratch.schedule_start_time
+        for task, dur in persona.scratch.f_daily_schedule:
+            schedule_lines.append(f"  {t.strftime('%H:%M')} - {task} ({dur}min)")
+            t += datetime.timedelta(minutes=dur)
+    else:
+        for i, (task, dur) in enumerate(persona.scratch.f_daily_schedule):
+            schedule_lines.append(f"  {i+1}. {task} ({dur}min)")
+    schedule_text = "\n".join(schedule_lines) if schedule_lines else "  (empty)"
+
+    prompt = f"""{persona.scratch.get_str_iss()}
+
+I just finished a conversation.
+Summary: {summary}
+
+Current task: {persona.scratch.act_description or 'none'}
+Current time: {persona.scratch.curr_time.strftime('%H:%M')}
+
+Current schedule:
+{schedule_text}
+
+Should I change my current plan based on this conversation?
+Output exactly one line:
+replan: yes / no"""
+
+    response = persona.llm_client.generate(prompt, system_prompt=prompts.SYSTEM_PROMPT)
+    if not response:
+        return
+
+    should_replan = False
+    for line in response.strip().split("\n"):
+        line = line.strip().lower()
+        if line.startswith("replan:"):
+            value = line.split(":", 1)[1].strip()
+            should_replan = value in ("yes", "true", "是")
+
+    if should_replan:
+        # Calculate remaining minutes until end of day
+        now = persona.scratch.curr_time
+        midnight = now.replace(hour=23, minute=59, second=59)
+        remaining = int((midnight - now).total_seconds() / 60)
+
+        # Clear schedule — next step will generate a new one for remaining time
+        persona.scratch.f_daily_schedule = []
+        persona.scratch.f_daily_schedule_hourly_org = []
+        persona.scratch.schedule_start_time = None
+        persona.scratch.act_address = None
+        persona.scratch.act_description = None
+
+
 def _to_replay_state(agent_state):
     """
     Convert a Persona._get_state() dict to replay format.
@@ -186,13 +329,26 @@ def _to_replay_state(agent_state):
         dict in replay format
     """
     tile = agent_state.get("curr_tile")
+
+    # Build chat info if agent is in a conversation
+    chat = None
+    chatting_with = agent_state.get("chatting_with")
+    chat_history = agent_state.get("chat_history")
+    if chatting_with and chat_history:
+        # Get the last message in the conversation
+        last_msg = chat_history[-1] if chat_history else None
+        chat = {
+            "with": chatting_with,
+            "msg": last_msg["msg"] if last_msg else None
+        }
+
     return {
         "x": tile[0] if tile else 0,
         "y": tile[1] if tile else 0,
         "address": agent_state.get("act_address") or "",
         "desc": agent_state.get("act_description") or "idle",
         "emoji": agent_state.get("act_pronunciatio") or "😶",
-        "chat": None
+        "chat": chat
     }
 
 

@@ -38,9 +38,8 @@ SYSTEM_PROMPT = (
 # =============================================================================
 
 DAILY_SCHEDULE = """{identity}
-Create a daily schedule for today. Each task should have a duration in minutes.
-The total must add up to exactly 24 hours (1440 minutes) to cover the full day.
-Include sleep as the last task.
+Create a schedule for the rest of the day. Each task should have a duration in minutes.
+The total must add up to exactly {total_minutes} minutes.
 The current time is {start_time}. Start the schedule from this time.
 
 Available locations in the world:
@@ -76,6 +75,7 @@ For pronunciatio, use a single Unicode emoji character (not :shortcodes:).
 Also decide if you want to chat with any nearby agent:
 - chat_type: none / small_talk / deep_talk
 - chat_with: agent name (or "none")
+- chat_rounds: number of conversation rounds (1-5 for small_talk, 6-20 for deep_talk, 0 for none)
 
 Example output:
 address: the Ville:Hobbs Cafe:cafe
@@ -84,7 +84,8 @@ pronunciatio: ☕
 object_description: coffee machine
 object_pronunciatio: ☕
 chat_type: small_talk
-chat_with: Klaus Mueller"""
+chat_with: Klaus Mueller
+chat_rounds: 3"""
 
 
 # =============================================================================
@@ -138,9 +139,9 @@ Output exactly:
 message: <what I say>"""
 
 
-SUMMARY_PROMPT = """Summarize this conversation between {name} and {other_name} in 1-2 sentences.
+SUMMARY_PROMPT = """{name}, summarize your conversation with {other_name} from your own perspective in 1-2 sentences.
 
 Conversation:
 {chat_history}
 
-Output a brief summary of what was discussed and any notable outcomes."""
+Focus on what YOU said, what YOU learned, and how YOU feel about the interaction."""

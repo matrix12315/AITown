@@ -37,9 +37,8 @@ SYSTEM_PROMPT = (
 # =============================================================================
 
 DAILY_SCHEDULE = """{identity}
-为今天制定一个日程安排。每个任务需要标注时长（分钟）。
-总时长必须恰好覆盖24小时（1440分钟）。
-最后一项任务应为睡觉。
+为今天剩余时间制定日程安排。每个任务需要标注时长（分钟）。
+总时长必须恰好为 {total_minutes} 分钟。
 当前时间是 {start_time}。从这个时间开始安排日程。
 
 世界中可用的地点：
@@ -75,6 +74,7 @@ pronunciatio 使用一个 Unicode 表情符号（不要用 :短代码:）。
 同时决定是否想和附近的某个角色聊天：
 - chat_type: none / small_talk / deep_talk
 - chat_with: 角色名字（或 "none"）
+- chat_rounds: 对话轮数（small_talk: 1-5轮，deep_talk: 6-20轮，none: 0）
 
 示例输出：
 address: 小镇:霍布斯咖啡馆:咖啡厅
@@ -83,7 +83,8 @@ pronunciatio: ☕
 object_description: 咖啡机
 object_pronunciatio: ☕
 chat_type: small_talk
-chat_with: Klaus Mueller"""
+chat_with: Klaus Mueller
+chat_rounds: 3"""
 
 
 # =============================================================================
@@ -137,9 +138,9 @@ CHAT_PROMPT = """{identity}
 message: <我要说的话>"""
 
 
-SUMMARY_PROMPT = """用1-2句话总结{name}和{other_name}之间的这段对话。
+SUMMARY_PROMPT = """{name}，用1-2句话从你自己的角度总结你和{other_name}的这段对话。
 
 对话记录：
 {chat_history}
 
-简要总结讨论了什么以及任何值得注意的结果。"""
+重点描述你说了什么、你了解到了什么、以及你对这次交流的感受。"""

@@ -173,9 +173,7 @@ class Persona:
         # determine next action if current one is finished)
         plan(self, self.llm_client, personas)
 
-        # Step 2b: Handle ongoing conversations
-        if self.scratch.chat_rounds_left > 0 and personas:
-            self._handle_conversation(personas)
+        # NOTE: Conversation handling moved to sim.step() — runs AFTER all agents plan
 
         # Step 3: Reflect — generate insights if enough experiences accumulated
         reflect(self, self.llm_client)
@@ -213,6 +211,7 @@ class Persona:
             ),
             "act_duration": self.scratch.act_duration,
             "chatting_with": self.scratch.chatting_with,
+            "chat_history": self.scratch.chat_history,
         }
 
     def _handle_conversation(self, personas):

@@ -166,10 +166,20 @@ def generate_daily_schedule(persona, llm_client):
     # Use language-specific prompt template from registry
     prompts = get_prompts()
     start_time_str = persona.scratch.curr_time.strftime("%H:%M") if persona.scratch.curr_time else "08:00"
+
+    # Calculate total minutes: full day (1440) or remaining time (replan)
+    if persona.scratch.curr_time:
+        midnight = persona.scratch.curr_time.replace(hour=23, minute=59, second=59)
+        remaining = int((midnight - persona.scratch.curr_time).total_seconds() / 60)
+        total_minutes = remaining if remaining > 0 else 1440
+    else:
+        total_minutes = 1440
+
     prompt = prompts.DAILY_SCHEDULE.format(
         identity=identity,
         locations=loc_list,
-        start_time=start_time_str
+        start_time=start_time_str,
+        total_minutes=total_minutes
     )
 
     response = llm_client.generate(prompt, system_prompt=prompts.SYSTEM_PROMPT)
@@ -183,10 +193,9 @@ def generate_daily_schedule(persona, llm_client):
         return []
 
     # Validate total duration — pad with sleep if schedule is too short
-    # 24 hours = 1440 minutes
     total = sum(dur for _, dur in schedule)
-    if total < 1440:
-        schedule.append(("sleep", 1440 - total))
+    if total < total_minutes:
+        schedule.append(("sleep", total_minutes - total))
 
     # Store the schedule
     persona.scratch.f_daily_schedule = schedule
@@ -254,24 +263,25 @@ def determine_action(persona, llm_client, personas=None):
         return
 
     # Parse the LLM response
-    chat_type, chat_with = _parse_and_set_action(persona, response, task_desc, task_duration)
+    chat_type, chat_with, chat_rounds = _parse_and_set_action(persona, response, task_desc, task_duration)
 
     # Start conversation if LLM decided to chat
-    if chat_type in ("small_talk", "deep_talk") and chat_with != "none":
-        _start_conversation(persona, chat_with, chat_type, personas)
+    if chat_type in ("small_talk", "deep_talk") and chat_with != "none" and chat_rounds > 0:
+        _start_conversation(persona, chat_with, chat_type, chat_rounds, personas)
 
 
-def _start_conversation(persona, other_name, chat_type, personas):
+def _start_conversation(persona, other_name, chat_type, chat_rounds, personas):
     """
     Start a conversation between persona and another agent.
 
     Sets up chat state on both agents. Actual message generation
-    happens in persona.step().
+    happens in sim.step() after all agents have planned.
 
     Args:
         persona: the agent initiating the conversation
         other_name: name of the agent to talk to
         chat_type: "small_talk" or "deep_talk"
+        chat_rounds: number of rounds (decided by LLM)
         personas: dict of all agents
     """
     if not personas or other_name not in personas:
@@ -286,25 +296,26 @@ def _start_conversation(persona, other_name, chat_type, personas):
     if not can_chat(other, persona.name):
         return
 
-    # Set total rounds based on chat type
-    import random
+    # Use LLM-decided rounds, clamped to valid range
     if chat_type == "small_talk":
-        total_rounds = random.randint(1, 5)
+        total_rounds = max(1, min(5, chat_rounds))
     else:  # deep_talk
-        total_rounds = random.randint(6, 20)
+        total_rounds = max(6, min(20, chat_rounds))
 
     # Set chat state on both agents
+    # IMPORTANT: both agents share the SAME chat_history list
+    shared_history = []
     persona.scratch.chatting_with = other_name
     persona.scratch.chat_type = chat_type
     persona.scratch.chat_rounds_left = total_rounds
     persona.scratch.chat_total_rounds = total_rounds
-    persona.scratch.chat_history = []
+    persona.scratch.chat_history = shared_history
 
     other.scratch.chatting_with = persona.name
     other.scratch.chat_type = chat_type
     other.scratch.chat_rounds_left = total_rounds
     other.scratch.chat_total_rounds = total_rounds
-    other.scratch.chat_history = []
+    other.scratch.chat_history = shared_history
 
 
 def _parse_and_set_action(persona, response, task_desc, task_duration):
@@ -326,6 +337,7 @@ def _parse_and_set_action(persona, response, task_desc, task_duration):
     obj_pron = "⬜"
     chat_type = "none"
     chat_with = "none"
+    chat_rounds = 0
 
     # Parse each field from the response
     for line in response.strip().split("\n"):
@@ -350,6 +362,11 @@ def _parse_and_set_action(persona, response, task_desc, task_duration):
             chat_type = value.lower() if value else "none"
         elif key == "chat_with":
             chat_with = value if value.lower() != "none" else "none"
+        elif key == "chat_rounds":
+            try:
+                chat_rounds = int(value)
+            except ValueError:
+                chat_rounds = 0
 
     # Build SPO triple — use first 3 words as the "object" for meaningful summaries
     words = description.split() if description else ["idle"]
@@ -374,7 +391,7 @@ def _parse_and_set_action(persona, response, task_desc, task_duration):
     )
 
     # Return chat decision for the caller to handle
-    return chat_type, chat_with
+    return chat_type, chat_with, chat_rounds
 
 
 def _set_action_from_task(persona, task_desc, task_duration):

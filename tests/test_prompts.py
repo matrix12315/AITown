@@ -49,7 +49,8 @@ class TestEnglishPrompts:
         result = en.DAILY_SCHEDULE.format(
             identity="I am test.",
             locations="loc1\nloc2",
-            start_time="08:00"
+            start_time="08:00",
+            total_minutes=1440
         )
         assert "test" in result
         assert "loc1" in result
@@ -92,7 +93,8 @@ class TestChinesePrompts:
         result = zh.DAILY_SCHEDULE.format(
             identity="我是测试。",
             locations="地点1\n地点2",
-            start_time="08:00"
+            start_time="08:00",
+            total_minutes=1440
         )
         assert "测试" in result
         assert "地点1" in result
